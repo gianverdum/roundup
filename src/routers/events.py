@@ -1,17 +1,16 @@
 # src/routers/events.py
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.exc import IntegrityError
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from src.database import get_db
-from src.models.event import Event
 from src.schemas.event import EventCreate, EventRead
+from src.services.event_service import create_event
 
 router = APIRouter()
 
 
 @router.post(
-    "/events/",
+    "/api/events/",
     response_model=EventRead,
     status_code=status.HTTP_201_CREATED,
     responses={
@@ -33,9 +32,9 @@ router = APIRouter()
         409: {"description": "Conflict - could not create event"},
     },
 )
-async def create_event(event: EventCreate, db: Session = Depends(get_db)) -> EventRead:
+async def create_event_route(event: EventCreate, db: Session = Depends(get_db)) -> EventRead:
     """
-    Creates a new event.
+    Handles the event creation route.
 
     Parameters:
         event (EventCreate): The details of the event to be created.
@@ -43,27 +42,5 @@ async def create_event(event: EventCreate, db: Session = Depends(get_db)) -> Eve
 
     Returns:
         EventRead: The newly created event record.
-
-    Raises:
-        HTTPException: If an error occurs during event creation.
     """
-    # Create the db_event instance using the EventCreate data
-    db_event = Event(**event.model_dump())
-
-    try:
-        db.add(db_event)
-        db.commit()
-        db.refresh(db_event)
-        return EventRead.model_validate(db_event)
-    except IntegrityError as e:
-        db.rollback()
-        print("Integrity Error:", e)  # Debugging output
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Event with the same name and date already exists."
-        )
-    except Exception as e:
-        db.rollback()
-        print("Unexpected Error:", e)  # Debugging output
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An unexpected error occurred: {str(e)}"
-        )
+    return await create_event(event, db)

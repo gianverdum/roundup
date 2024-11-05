@@ -2,11 +2,14 @@
 import os
 from typing import Generator
 
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
-DATABASE_URL = os.getenv("POSTGRES_URL", "sqlite:///:memory:")
+load_dotenv()
 
+# Retrieve and modify the PostgreSQL connection URL from the environment
+DATABASE_URL = os.getenv("POSTGRES_URL")
 
 # Replace the 'postgres://' prefix with 'postgresql://' if necessary
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
@@ -27,12 +30,7 @@ Base = declarative_base()
 
 
 def get_db() -> Generator[Session, None, None]:
-    """
-    Dependency that provides a SQLAlchemy database session.
-
-    Yields:
-        Session: A SQLAlchemy session instance.
-    """
+    """Dependency that provides a SQLAlchemy database session."""
     db = SessionLocal()
     try:
         yield db
