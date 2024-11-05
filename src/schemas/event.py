@@ -26,7 +26,7 @@ class EventCreate(BaseModel):
     )
     participant_limit: int = Field(..., gt=0, description="Limit for number of participants, must be greater than 0.")
 
-    class Config:
+    class ConfigDict:
         from_atributes = True
         json_schema_extra = {
             "example": {
@@ -43,3 +43,22 @@ class EventCreate(BaseModel):
         if value < datetime.now():
             raise ValueError("The event date cannot be in the past.")
         return value
+
+
+class EventRead(EventCreate):
+    """
+    Schema for reading an event, which includes the event ID.
+
+    Attributes:
+        id (int): Unique identifier for the event.
+        name (str): Name of the event.
+        date (datetime): Date and time of the event.
+        location (str): Location of the event.
+        participant_limit (int): Limit for number of participants.
+        address (str): Address of the event.
+    """
+
+    id: int
+
+    class ConfigDict:
+        from_atributes = True

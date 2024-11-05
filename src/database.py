@@ -3,10 +3,9 @@ import os
 from typing import Generator
 
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session, sessionmaker, declarative_base
 
-DATABASE_URL = os.getenv("POSTGRES_URL")
+DATABASE_URL = os.getenv("POSTGRES_URL", "sqlite:///:memory:")
 
 
 # Replace the 'postgres://' prefix with 'postgresql://' if necessary

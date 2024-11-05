@@ -1,17 +1,18 @@
 # src/routers/events.py
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.database import get_db
 from src.models.event import Event
-from src.schemas.event import EventCreate
+from src.schemas.event import EventCreate, EventRead
 
 router = APIRouter()
 
 
 @router.post(
     "/events/",
-    response_model=EventCreate,
+    response_model=EventRead,
     status_code=status.HTTP_201_CREATED,
     responses={
         201: {
@@ -29,9 +30,10 @@ router = APIRouter()
             },
         },
         400: {"description": "Bad Request"},
+        409: {"description": "Conflict - could not create event"},
     },
 )
-def create_event(event: EventCreate, db: Session = Depends(get_db)) -> Event:
+async def create_event(event: EventCreate, db: Session = Depends(get_db)) -> EventRead:
     """
     Creates a new event.
 
@@ -40,13 +42,30 @@ def create_event(event: EventCreate, db: Session = Depends(get_db)) -> Event:
         db (Session): Database session dependency.
 
     Returns:
-        Event: The newly created event record.
+        EventRead: The newly created event record.
 
     Raises:
         HTTPException: If an error occurs during event creation.
     """
+    # Create the db_event instance using the EventCreate data
     db_event = Event(**event.model_dump())
-    db.add(db_event)
-    db.commit()
-    db.refresh(db_event)
-    return db_event
+
+    try:
+        db.add(db_event)
+        db.commit()
+        db.refresh(db_event)
+        return EventRead.model_validate(db_event)
+    except IntegrityError as e:
+        db.rollback()
+        print("Integrity Error:", e)  # Debugging output
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Event with the same name and date already exists."
+        )
+    except Exception as e:
+        db.rollback()
+        print("Unexpected Error:", e)  # Debugging output
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {str(e)}"
+        )
