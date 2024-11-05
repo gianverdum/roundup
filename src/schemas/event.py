@@ -1,7 +1,7 @@
 # src/schemas/event.py
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class EventCreate(BaseModel):
@@ -26,9 +26,9 @@ class EventCreate(BaseModel):
     )
     participant_limit: int = Field(..., gt=0, description="Limit for number of participants, must be greater than 0.")
 
-    class Config:
-        from_atributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "name": "Annual Business Round",
                 "date": "2024-12-05T15:30:00",
@@ -36,10 +36,29 @@ class EventCreate(BaseModel):
                 "address": "Av. Paulista, 1000 - Bela Vista, São Paulo - SP, 01310-000",
                 "participant_limit": 50,
             }
-        }
+        },
+    )
 
     @field_validator("date")
     def date_not_in_past(cls, value: datetime) -> datetime:
         if value < datetime.now():
             raise ValueError("The event date cannot be in the past.")
         return value
+
+
+class EventRead(EventCreate):
+    """
+    Schema for reading an event, which includes the event ID.
+
+    Attributes:
+        id (int): Unique identifier for the event.
+        name (str): Name of the event.
+        date (datetime): Date and time of the event.
+        location (str): Location of the event.
+        participant_limit (int): Limit for number of participants.
+        address (str): Address of the event.
+    """
+
+    id: int
+
+    model_config = ConfigDict(from_attributes=True)

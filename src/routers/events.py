@@ -3,15 +3,15 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from src.database import get_db
-from src.models.event import Event
-from src.schemas.event import EventCreate
+from src.schemas.event import EventCreate, EventRead
+from src.services.event_service import create_event
 
 router = APIRouter()
 
 
 @router.post(
-    "/events/",
-    response_model=EventCreate,
+    "/api/events/",
+    response_model=EventRead,
     status_code=status.HTTP_201_CREATED,
     responses={
         201: {
@@ -29,24 +29,18 @@ router = APIRouter()
             },
         },
         400: {"description": "Bad Request"},
+        409: {"description": "Conflict - could not create event"},
     },
 )
-def create_event(event: EventCreate, db: Session = Depends(get_db)) -> Event:
+async def create_event_route(event: EventCreate, db: Session = Depends(get_db)) -> EventRead:
     """
-    Creates a new event.
+    Handles the event creation route.
 
     Parameters:
         event (EventCreate): The details of the event to be created.
         db (Session): Database session dependency.
 
     Returns:
-        Event: The newly created event record.
-
-    Raises:
-        HTTPException: If an error occurs during event creation.
+        EventRead: The newly created event record.
     """
-    db_event = Event(**event.model_dump())
-    db.add(db_event)
-    db.commit()
-    db.refresh(db_event)
-    return db_event
+    return await create_event(event, db)
