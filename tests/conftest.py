@@ -1,10 +1,13 @@
 # tests/conftest.py
+from typing import Generator
+
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
-from src.main import app
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+
 from src.database import Base, get_db
+from src.main import app
 
 # In-memory database configuration for testing
 DATABASE_URL = "sqlite:///:memory:"
@@ -14,7 +17,7 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 # Fixture to set up the database and create tables before each test
 @pytest.fixture(scope="function")
-def db_session():
+def db_session() -> Generator[Session, None, None]:
     """Creates tables before each test and drops them afterward to ensure isolation."""
     Base.metadata.create_all(bind=engine)
     db = TestingSessionLocal()
@@ -27,9 +30,10 @@ def db_session():
 
 # Fixture for TestClient, injecting db_session into the app
 @pytest.fixture(scope="function")
-def test_client(db_session):
+def test_client(db_session: Session) -> Generator[TestClient, None, None]:
     """Overrides the app's database dependency to use the in-memory test database."""
-    def override_get_db():
+
+    def override_get_db() -> Generator[Session, None, None]:
         try:
             yield db_session
         finally:

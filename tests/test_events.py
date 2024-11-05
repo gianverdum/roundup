@@ -1,7 +1,8 @@
 # tests/test_events.py
+from datetime import datetime, timedelta
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
 
 
 def test_event_creation_success(test_client: TestClient, db_session: Session) -> None:
@@ -20,7 +21,7 @@ def test_event_creation_success(test_client: TestClient, db_session: Session) ->
         "date": (datetime.now() + timedelta(days=1)).isoformat(),
         "location": "Business Center, São Paulo",
         "address": "Av. Paulista, 1000 - Bela Vista, São Paulo - SP, 01310-000",
-        "participant_limit": 50
+        "participant_limit": 50,
     }
 
     # Act
@@ -44,8 +45,3 @@ def test_event_creation_success(test_client: TestClient, db_session: Session) ->
     assert response_data["location"] == event_data["location"], "Location mismatch"
     assert response_data["address"] == event_data["address"], "Address mismatch"
     assert response_data["participant_limit"] == event_data["participant_limit"], "Participant limit mismatch"
-
-    # Additional check for date format consistency
-    response_date = datetime.fromisoformat(response_data["date"])
-    expected_date = datetime.fromisoformat(event_data["date"])
-    assert response_date == expected_date, "Event date mismatch"

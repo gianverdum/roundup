@@ -1,5 +1,5 @@
 # src/routers/events.py
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -59,13 +59,11 @@ async def create_event(event: EventCreate, db: Session = Depends(get_db)) -> Eve
         db.rollback()
         print("Integrity Error:", e)  # Debugging output
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Event with the same name and date already exists."
+            status_code=status.HTTP_409_CONFLICT, detail="Event with the same name and date already exists."
         )
     except Exception as e:
         db.rollback()
         print("Unexpected Error:", e)  # Debugging output
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected error occurred: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An unexpected error occurred: {str(e)}"
         )
