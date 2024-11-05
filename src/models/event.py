@@ -29,4 +29,9 @@ class Event(Base):
     participant_limit = Column(Integer)
 
     def __repr__(self) -> str:
-        return f"<Event(name={self.name}, date={self.date}, location={self.location})"
+        return (
+            f"<Event(name={self.name!r}, "
+            f"date={self.date}, "
+            f"location={self.location!r}, "
+            f"address={self.address!r})>"
+        )

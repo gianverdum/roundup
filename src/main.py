@@ -38,7 +38,7 @@ async def db_error_handler(request: Request, call_next: Callable[[Request], JSON
         return response
     except OperationalError as op_err:
         logging.error(f"Database operational error: {op_err}")
-        return JSONResponse(status_code=500, content={"detail": f"Database error: {str(op_err)}"})
+        return JSONResponse(status_code=500, content={"detail": f"Database error: {str(op_err.orig)}"})
     except SQLAlchemyError as sql_err:
         logging.error(f"SQLAlchemy error: {sql_err}")
         return JSONResponse(status_code=500, content={"detail": f"Unexpected database error: {str(sql_err)}"})

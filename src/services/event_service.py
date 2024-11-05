@@ -1,4 +1,3 @@
-# src/services/event_service.py
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -21,6 +20,14 @@ async def create_event(event: EventCreate, db: Session) -> EventRead:
     Raises:
         HTTPException: If an error occurs during event creation.
     """
+    # Check for existing event based on a unique attribute
+    existing_event = db.query(Event).filter_by(name=event.name, date=event.date).first()
+
+    if existing_event:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Event with the same name and date already exists."
+        )
+
     db_event = Event(**event.model_dump())
 
     try:
