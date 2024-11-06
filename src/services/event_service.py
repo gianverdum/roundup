@@ -1,3 +1,4 @@
+# src/services/event_service.py
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
