@@ -2,21 +2,23 @@
 from datetime import datetime
 
 from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy.orm import relationship
 
 from src.database import Base
 
 
 class Event(Base):
     """
-    Represents an event with attributes such as name, date, location, participant limit, and address.
+    Represents an event with various details.
 
     Attributes:
         id (int): Primary key for the event record.
         name (str): Name of the event.
         date (datetime): Date and time of the event.
-        location (str): Location where the event will take place.
-        participant_limit (int): Maximum number of participants allowed.
-        address (str): Address of the event.
+        location (str): Location of the event.
+        address (str): Address for the event.
+        participant_limit (int): Max number of participants allowed.
+        max_seats_per_table (int): Max seats allowed per table for the event.
     """
 
     __tablename__ = "events"
@@ -27,6 +29,9 @@ class Event(Base):
     location = Column(String)
     address = Column(String)
     participant_limit = Column(Integer)
+    max_seats_per_table = Column(Integer, nullable=False)
+
+    tables = relationship("Table", back_populates="event")
 
     def __repr__(self) -> str:
         return (
