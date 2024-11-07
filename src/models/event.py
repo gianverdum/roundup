@@ -30,6 +30,7 @@ class Event(Base):
     address = Column(String)
     participant_limit = Column(Integer)
     max_seats_per_table = Column(Integer, nullable=False)
+    tables_count = Column(Integer, nullable=False)
 
     tables = relationship("Table", back_populates="event")
 
@@ -38,5 +39,7 @@ class Event(Base):
             f"<Event(name={self.name!r}, "
             f"date={self.date}, "
             f"location={self.location!r}, "
-            f"address={self.address!r})>"
+            f"address={self.address!r}, "
+            f"max_seats_per_table={self.max_seats_per_table}, "
+            f"tables_count={self.tables_count})>"
         )

@@ -42,6 +42,7 @@ def db_session() -> Generator[Session, None, None]:
     transaction = connection.begin()
 
     session = SessionLocal(bind=connection)
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
 
     yield session
@@ -74,6 +75,8 @@ def generate_unique_event() -> EventCreate:
         location=f"Location {random.randint(1, 100)}",
         address=f"{random.randint(1, 1000)} - Sample Address, São Paulo - SP, 01310-{random.randint(100, 999)}",
         participant_limit=random.randint(10, 100),
+        max_seats_per_table=random.randint(2, 8),
+        tables_count=random.randint(1, 20),
     )
 
 
@@ -98,6 +101,8 @@ def test_event_creation_success(test_client: TestClient, db_session: Session) ->
     assert response_data["location"] == event_data.location
     assert response_data["date"] == event_data.date.isoformat()
     assert "id" in response_data and isinstance(response_data["id"], int) and response_data["id"] > 0
+    assert response_data["max_seats_per_table"] == event_data.max_seats_per_table
+    assert response_data["tables_count"] == event_data.tables_count
 
 
 def test_event_creation_with_past_date(test_client: TestClient, db_session: Session) -> None:
@@ -134,6 +139,8 @@ def test_event_repr() -> None:
         date=event_data.date,
         location=event_data.location,
         address=event_data.address,
+        max_seats_per_table=event_data.max_seats_per_table,
+        tables_count=event_data.tables_count,
     )
 
     # Act
@@ -143,7 +150,9 @@ def test_event_repr() -> None:
         f"<Event(name={event_data.name!r}, "
         f"date={event_data.date}, "
         f"location={event_data.location!r}, "
-        f"address={event_data.address!r})>"
+        f"address={event_data.address!r}, "
+        f"max_seats_per_table={event_data.max_seats_per_table}, "
+        f"tables_count={event_data.tables_count})>"
     )
 
     # Assert
@@ -152,7 +161,14 @@ def test_event_repr() -> None:
 
 def test_create_event_with_invalid_data(test_client: TestClient, db_session: Session) -> None:
     """Tests the creation of an event with invalid data."""
-    invalid_event_data = {"name": "", "date": "invalid-date", "location": "Location", "address": "Address"}
+    invalid_event_data = {
+        "name": "",
+        "date": "invalid-date",
+        "location": "Location",
+        "address": "Address",
+        "max_seats_per_table": 1,
+        "tables_count": 0,
+    }
 
     response = test_client.post("/api/events/", json=invalid_event_data)
 
@@ -164,6 +180,12 @@ def test_create_event_with_invalid_data(test_client: TestClient, db_session: Ses
 
     name_error = next((error for error in response_data["detail"] if error["loc"] == ["body", "name"]), None)
     date_error = next((error for error in response_data["detail"] if error["loc"] == ["body", "date"]), None)
+    max_seats_error = next(
+        (error for error in response_data["detail"] if error["loc"] == ["body", "max_seats_per_table"]), None
+    )
+    tables_count_error = next(
+        (error for error in response_data["detail"] if error["loc"] == ["body", "tables_count"]), None
+    )
 
     assert name_error is not None
     assert "msg" in name_error
@@ -172,6 +194,14 @@ def test_create_event_with_invalid_data(test_client: TestClient, db_session: Ses
     assert date_error is not None
     assert "msg" in date_error
     assert "Input should be a valid datetime or date" in date_error["msg"]
+
+    assert max_seats_error is not None
+    assert "msg" in max_seats_error
+    assert max_seats_error["msg"] == "Input should be greater than 1"
+
+    assert tables_count_error is not None
+    assert "msg" in tables_count_error
+    assert tables_count_error["msg"] == "Input should be greater than 0"
 
 
 def test_get_db(db_session: Session) -> None:
@@ -267,6 +297,8 @@ def test_create_event_with_invalid_date_format(test_client: TestClient) -> None:
         "location": "Some Location",
         "address": "123 Sample Address",
         "participant_limit": 50,
+        "max_seats_per_table": 0,
+        "tables_count": 0,
     }
 
     # Act
@@ -286,6 +318,22 @@ def test_create_event_with_invalid_date_format(test_client: TestClient) -> None:
     assert "msg" in date_error
     assert "invalid character in year" in date_error["msg"]
 
+    # Check for the specific error related to the max_seats_per_table field
+    max_seats_error = next(
+        (error for error in response_data["detail"] if error["loc"] == ["body", "max_seats_per_table"]), None
+    )
+    assert max_seats_error is not None
+    assert "msg" in max_seats_error
+    assert max_seats_error["msg"] == "Input should be greater than 1"
+
+    # Check for the specific error related to the tables_count field
+    tables_count_error = next(
+        (error for error in response_data["detail"] if error["loc"] == ["body", "tables_count"]), None
+    )
+    assert tables_count_error is not None
+    assert "msg" in tables_count_error
+    assert tables_count_error["msg"] == "Input should be greater than 0"
+
 
 def test_create_event_with_missing_fields(test_client: TestClient) -> None:
     """Tests the creation of an event with missing fields."""
@@ -293,7 +341,7 @@ def test_create_event_with_missing_fields(test_client: TestClient) -> None:
     event_data = {
         "name": "Event without date",
         "location": "Some Location",
-        # Missing date and address
+        # Missing date, address, participant_limit, max_seats_per_table, and tables_count
     }
 
     # Act
@@ -311,7 +359,14 @@ def test_create_event_with_missing_fields(test_client: TestClient) -> None:
     missing_fields_errors = [
         error
         for error in response_data["detail"]
-        if error["loc"] in [["body", "date"], ["body", "address"], ["body", "participant_limit"]]
+        if error["loc"]
+        in [
+            ["body", "date"],
+            ["body", "address"],
+            ["body", "participant_limit"],
+            ["body", "max_seats_per_table"],
+            ["body", "tables_count"],
+        ]
     ]
     assert len(missing_fields_errors) > 0
 

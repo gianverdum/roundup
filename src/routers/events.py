@@ -13,6 +13,7 @@ router = APIRouter()
     "/api/events/",
     response_model=EventRead,
     status_code=status.HTTP_201_CREATED,
+    summary="Register the event",
     responses={
         201: {
             "description": "Event created successfully",
@@ -24,6 +25,8 @@ router = APIRouter()
                         "location": "Business Center, São Paulo",
                         "address": "Av. Paulista, 1000 - Bela Vista, São Paulo - SP, 01310-000",
                         "participant_limit": 50,
+                        "max_seats_per_table": 8,
+                        "tables_count": 12,
                     }
                 }
             },
