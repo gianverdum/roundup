@@ -25,6 +25,7 @@ router = APIRouter()
                         "whatsapp": "11911112222",
                         "email": "email@gmail.com",
                         "custom_data": "JSON",
+                        "event_id": 1,
                     }
                 }
             },
@@ -35,13 +36,20 @@ router = APIRouter()
 )
 async def create_participant_route(participant: ParticipantCreate, db: Session = Depends(get_db)) -> ParticipantRead:
     """
-    Create a new participant and associate them with the event.
-    The custom data allows dynamic attributes based on event needs.
+    Creates a new participant and associates them with a specific event.
 
-    - **full_name**: Full name of the participant.
-    - **company_name**: Company the participant is representing.
-    - **whatsapp**: Participant's WhatsApp number.
-    - **email**: Participant's email address.
-    - **custom_data**: Additional dynamic fields specific to the event (optional).
+    Parameters:
+        - full_name (str): Full name of the participant.
+        - company_name (str): Company the participant is representing.
+        - whatsapp (str): Participant's WhatsApp number.
+        - email (str): Participant's email address.
+        - custom_data (dict, optional): Additional dynamic fields specific to the event.
+        - event_id (int): ID of the associated event.
+
+    Returns:
+        ParticipantRead: Information about the newly created participant.
+
+    Raises:
+        HTTPException: If a participant with the same email or WhatsApp exists.
     """
     return await create_participant(participant, db)
