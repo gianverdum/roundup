@@ -2,7 +2,7 @@
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy.orm import field_validate
+from sqlalchemy.orm import field_validator
 
 
 class ParticipantCreate(BaseModel):
@@ -27,7 +27,7 @@ class ParticipantCreate(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    @field_validate("custom_data")
+    @field_validator("custom_data")
     def validate_custom_data(self, key: str, value: Optional[str]) -> Optional[str]:
         """
         Ensures that custom_data is stored as a string. If custom_data is not a string,
