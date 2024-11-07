@@ -1,8 +1,7 @@
 # src/schemas/participant.py
 from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy.orm import field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ParticipantCreate(BaseModel):
@@ -28,7 +27,7 @@ class ParticipantCreate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     @field_validator("custom_data")
-    def validate_custom_data(self, key: str, value: Optional[str]) -> Optional[str]:
+    def validate_custom_data(self, value: Optional[str]) -> Optional[str]:
         """
         Ensures that custom_data is stored as a string. If custom_data is not a string,
         it converts it to one. Returns None if the value is empty.
