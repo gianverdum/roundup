@@ -14,6 +14,8 @@ class EventCreate(BaseModel):
         location (str): Location of the event with minimum character requirement.
         participant_limit (int): Limit for number of participants, must be greater than 0.
         address (str): Address of the event, required to have specific characteristics.
+        max_seats_per_table (int): Maximum number of seats allowed per table for the event.
+        tables_count (int): Number of tables to be created for the event.
     """
 
     name: str = Field(..., min_length=3, max_length=100, description="Name of the event, at least 3 characters.")
@@ -25,6 +27,8 @@ class EventCreate(BaseModel):
         ..., min_length=10, max_length=200, description="Address of the event, must be a full address."
     )
     participant_limit: int = Field(..., gt=0, description="Limit for number of participants, must be greater than 0.")
+    max_seats_per_table: int = Field(..., gt=1, description="2 is the minimum number of seats allowed per table.")
+    tables_count: int = Field(..., gt=0, description="1 is the minimun number of tables to be created for the event.")
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -35,6 +39,8 @@ class EventCreate(BaseModel):
                 "location": "Business Center, São Paulo",
                 "address": "Av. Paulista, 1000 - Bela Vista, São Paulo - SP, 01310-000",
                 "participant_limit": 50,
+                "max_seats_per_table": 8,
+                "tables_count": 12,
             }
         },
     )
@@ -57,6 +63,8 @@ class EventRead(EventCreate):
         location (str): Location of the event.
         participant_limit (int): Limit for number of participants.
         address (str): Address of the event.
+        max_seats_per_table (int): Maximum number of seats per table for the event.
+        tables_count (int): Number of tables created for the event.
     """
 
     id: int

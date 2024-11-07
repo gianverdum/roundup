@@ -1,5 +1,5 @@
 # src/schemas/table.py
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TableCreate(BaseModel):
@@ -13,13 +13,25 @@ class TableCreate(BaseModel):
     """
 
     event_id: int
-    seats: int = Field(..., ge=1)
+    seats: int = Field(..., ge=2)
     quantity: int = Field(..., ge=1)
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_validator("seats")
+    def check_seats(cls, value: int) -> int:
+        if not isinstance(value, int):
+            raise ValueError("Seats must be an integer.")
+        return value
 
-class TableResponse(TableCreate):
+    @field_validator("quantity")
+    def check_quantity(cls, value: int) -> int:
+        if not isinstance(value, int):
+            raise ValueError("Quantity must be an integer.")
+        return value
+
+
+class TableResponse(BaseModel):
     """
     Response schema for a table including its ID.
 
@@ -28,3 +40,6 @@ class TableResponse(TableCreate):
     """
 
     id: int
+    event_id: int
+    table_number: int
+    seats: int

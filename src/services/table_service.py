@@ -20,7 +20,11 @@ def create_tables(db: Session, table_data: TableCreate) -> List[TableResponse]:
 
     Raises:
         ValueError: If the associated event is not found or if the seats exceed the event's limit.
+        TypeError: If an invalid data type is passed.
     """
+    if not isinstance(table_data.seats, int) or not isinstance(table_data.quantity, int):
+        raise TypeError("Seats and quantity must be integers.")
+
     event = db.query(Event).filter(Event.id == table_data.event_id).first()
     if not event:
         raise ValueError("Event not found")
@@ -46,6 +50,6 @@ def create_tables(db: Session, table_data: TableCreate) -> List[TableResponse]:
 
     # Convert each table to a TableResponse and return the list
     return [
-        TableResponse(id=table.id, event_id=table.event_id, seats=table.seats, quantity=table_data.quantity)
+        TableResponse(id=table.id, event_id=table.event_id, seats=table.seats, table_number=table.table_number)
         for table in created_tables
     ]
