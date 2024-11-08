@@ -1,6 +1,7 @@
 # src/services/event_service.py
 from datetime import datetime
-from typing import List, Optional
+from math import ceil
+from typing import Any, Dict, Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
@@ -66,7 +67,7 @@ async def get_event_by_id(event_id: int, db: Session) -> EventRead:
     return db.query(Event).filter(Event.id == event_id).first()
 
 
-async def get_all_events(db: Session, limit: int, offset: int) -> List[EventRead]:
+async def get_all_events(db: Session, limit: int, offset: int) -> Dict[str, Any]:
     """
     Retrieves a paginated list of all events.
 
@@ -76,9 +77,16 @@ async def get_all_events(db: Session, limit: int, offset: int) -> List[EventRead
         offset (int): Starting index for pagination.
 
     Returns:
-        List[EventRead]: A paginated list of all event records.
+        Dict[str, Any]: A dictionary containing the list of events, total records, and total pages.
     """
-    return db.query(Event).offset(offset).limit(limit).all()
+    total_records = db.query(Event).count()
+    events = db.query(Event).offset(offset).limit(limit).all()
+
+    return {
+        "total_records": total_records,
+        "total_pages": ceil(total_records / limit),
+        "events": events,
+    }
 
 
 async def filter_events(
@@ -90,7 +98,7 @@ async def filter_events(
     db: Session,
     limit: int,
     offset: int,
-) -> List[EventRead]:
+) -> Dict[str, Any]:
     """
     Filters and paginates events based on optional parameters.
 
@@ -105,7 +113,7 @@ async def filter_events(
         offset (int): Starting index for pagination.
 
     Returns:
-        List[EventRead]: A paginated list of events matching the filters.
+        Dict[str, Any]: A dictionary containing the filtered list of events, total records, and total pages.
     """
     query = db.query(Event)
 
@@ -120,7 +128,14 @@ async def filter_events(
     if max_seats_per_table:
         query = query.filter(Event.max_seats_per_table == max_seats_per_table)
 
-    return query.offset(offset).limit(limit).all()
+    total_records = query.count()
+    events = query.offset(offset).limit(limit).all()
+
+    return {
+        "total_records": total_records,
+        "total_pages": ceil(total_records / limit),
+        "events": events,
+    }
 
 
 async def update_event(event_id: int, event_data: EventCreate, db: Session) -> EventRead:
