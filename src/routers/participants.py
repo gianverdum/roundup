@@ -24,7 +24,7 @@ router = APIRouter()
                         "company_name": "My business",
                         "whatsapp": "11911112222",
                         "email": "email@gmail.com",
-                        "custom_data": "JSON",
+                        "custom_data": {"preferences": {"theme": "dark", "notifications": True}},
                         "event_id": 1,
                     }
                 }
@@ -52,4 +52,5 @@ async def create_participant_route(participant: ParticipantCreate, db: Session =
     Raises:
         HTTPException: If a participant with the same email or WhatsApp exists.
     """
+
     return await create_participant(participant, db)
