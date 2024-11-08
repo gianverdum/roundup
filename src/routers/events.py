@@ -1,7 +1,8 @@
 # src/routers/events.py
-from typing import List
+from datetime import datetime
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from src.database import get_db
@@ -9,6 +10,7 @@ from src.schemas.event import EventCreate, EventRead
 from src.services.event_service import (
     create_event,
     delete_event,
+    filter_events,
     get_all_events,
     get_event_by_id,
     update_event,
@@ -91,20 +93,106 @@ async def read_event_route(event_id: int, db: Session = Depends(get_db)) -> Even
     "/api/events/",
     status_code=status.HTTP_200_OK,
     response_model=List[EventRead],
-    summary="Get all events",
-    responses={200: {"description": "List of events returned successfully"}},
+    summary="Get all events with pagination",
+    responses={
+        200: {
+            "description": "List of paginated events returned successfully",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "id": 1,
+                            "name": "Annual Meetup",
+                            "date": "2024-12-01T14:00:00",
+                            "location": "New York",
+                            "participant_limit": 100,
+                            "max_seats_per_table": 10,
+                        },
+                        {
+                            "id": 2,
+                            "name": "Tech Conference",
+                            "date": "2024-11-20T10:00:00",
+                            "location": "San Francisco",
+                            "participant_limit": 200,
+                            "max_seats_per_table": 8,
+                        },
+                    ]
+                }
+            },
+        }
+    },
 )
-async def read_events_route(db: Session = Depends(get_db)) -> List[EventRead]:
+async def read_events_route(
+    db: Session = Depends(get_db),
+    limit: int = Query(10, ge=1, description="Limit the number of results", example=5),
+    offset: int = Query(0, ge=0, description="The starting index of results", example=0),
+) -> List[EventRead]:
     """
-    Retrieves a list of all events.
+    Retrieves a paginated list of all events.
 
     Parameters:
         db (Session): Database session dependency.
+        limit (int): Maximum number of events to return.
+        offset (int): Starting index for pagination.
 
     Returns:
-        List[EventRead]: A list of all events.
+        List[EventRead]: A paginated list of all events.
     """
-    return await get_all_events(db)
+    return await get_all_events(db, limit=limit, offset=offset)
+
+
+@router.get(
+    "/api/events/filter",
+    status_code=status.HTTP_200_OK,
+    response_model=List[EventRead],
+    summary="Filter events with pagination",
+    responses={
+        200: {
+            "description": "Filtered and paginated list of events returned successfully",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "id": 1,
+                            "name": "Annual Meetup",
+                            "date": "2024-12-01T14:00:00",
+                            "location": "New York",
+                            "participant_limit": 100,
+                            "max_seats_per_table": 10,
+                        }
+                    ]
+                }
+            },
+        }
+    },
+)
+async def filter_events_route(
+    name: Optional[str] = Query(None, description="Filter by event name", example="Tech Conference"),
+    date: Optional[datetime] = Query(None, description="Filter by event date", example="2024-11-20T10:00:00"),
+    location: Optional[str] = Query(None, description="Filter by event location", example="San Francisco"),
+    participant_limit: Optional[int] = Query(None, description="Filter by participant limit", example=200),
+    max_seats_per_table: Optional[int] = Query(None, description="Filter by max seats per table", example=8),
+    db: Session = Depends(get_db),
+    limit: int = Query(10, ge=1, description="Limit the number of results", example=5),
+    offset: int = Query(0, ge=0, description="The starting index of results", example=0),
+) -> List[EventRead]:
+    """
+    Retrieves a paginated list of events filtered by the provided parameters.
+
+    Parameters:
+        name (str, optional): Event name to filter by.
+        date (datetime, optional): Event date to filter by.
+        location (str, optional): Event location to filter by.
+        participant_limit (int, optional): Limit of participants to filter by.
+        max_seats_per_table (int, optional): Max seats per table to filter by.
+        db (Session): Database session dependency.
+        limit (int): Maximum number of events to return.
+        offset (int): Starting index for pagination.
+
+    Returns:
+        List[EventRead]: A paginated list of events matching the filters.
+    """
+    return await filter_events(name, date, location, participant_limit, max_seats_per_table, db, limit, offset)
 
 
 @router.put(
