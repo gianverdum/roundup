@@ -66,7 +66,7 @@ async def create_participant_route(participant: ParticipantCreate, db: Session =
 
 @router.get(
     "/api/participants/{participant_id}",
-    status_code=status.HTTP_200,
+    status_code=status.HTTP_200_OK,
     response_model=ParticipantRead,
     summary="Get participant by ID",
     responses={
