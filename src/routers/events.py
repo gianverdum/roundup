@@ -1,6 +1,6 @@
 # src/routers/events.py
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
@@ -92,7 +92,7 @@ async def read_event_route(event_id: int, db: Session = Depends(get_db)) -> Even
 @router.get(
     "/api/events/",
     status_code=status.HTTP_200_OK,
-    response_model=List[EventRead],
+    response_model=Dict[str, Any],
     summary="Get all events with pagination",
     responses={
         200: {
@@ -126,9 +126,9 @@ async def read_events_route(
     db: Session = Depends(get_db),
     limit: int = Query(10, ge=1, description="Limit the number of results", example=5),
     offset: int = Query(0, ge=0, description="The starting index of results", example=0),
-) -> List[EventRead]:
+) -> Dict[str, Any]:
     """
-    Retrieves a paginated list of all events.
+    Retrieves a paginated list of all events with total records and pages.
 
     Parameters:
         db (Session): Database session dependency.
@@ -136,7 +136,7 @@ async def read_events_route(
         offset (int): Starting index for pagination.
 
     Returns:
-        List[EventRead]: A paginated list of all events.
+        Dict[str, Any]: A dictionary containing the list of events, total records, and total pages.
     """
     return await get_all_events(db, limit=limit, offset=offset)
 
@@ -144,7 +144,7 @@ async def read_events_route(
 @router.get(
     "/api/events/filter",
     status_code=status.HTTP_200_OK,
-    response_model=List[EventRead],
+    response_model=Dict[str, Any],
     summary="Filter events with pagination",
     responses={
         200: {
@@ -175,9 +175,9 @@ async def filter_events_route(
     db: Session = Depends(get_db),
     limit: int = Query(10, ge=1, description="Limit the number of results", example=5),
     offset: int = Query(0, ge=0, description="The starting index of results", example=0),
-) -> List[EventRead]:
+) -> Dict[str, Any]:
     """
-    Retrieves a paginated list of events filtered by the provided parameters.
+    Retrieves a paginated list of events filtered by the provided parameters, with total records and pages.
 
     Parameters:
         name (str, optional): Event name to filter by.
@@ -190,7 +190,7 @@ async def filter_events_route(
         offset (int): Starting index for pagination.
 
     Returns:
-        List[EventRead]: A paginated list of events matching the filters.
+        Dict[str, Any]: A dictionary containing the filtered list of events, total records, and total pages.
     """
     return await filter_events(name, date, location, participant_limit, max_seats_per_table, db, limit, offset)
 
