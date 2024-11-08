@@ -1,5 +1,5 @@
 # src/models/participant.py
-from sqlalchemy import Column, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Column, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
 
 from src.database import Base
@@ -23,10 +23,10 @@ class Participant(Base):
     id = Column(Integer, primary_key=True, index=True)
     full_name = Column(String(255), nullable=False)
     company_name = Column(String(255), nullable=False)
-    whatsapp = Column(String(20), nullable=False)
-    email = Column(String(255), nullable=False)
-    custom_data = Column(Text, nullable=True)
-    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+    whatsapp = Column(String(20), nullable=False, index=True)
+    email = Column(String(255), nullable=False, index=True)
+    custom_data = Column(JSON, nullable=True)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False, index=True)
 
     event = relationship("Event", back_populates="participants")
 
@@ -37,5 +37,10 @@ class Participant(Base):
             f"company_name={self.company_name!r}, "
             f"whatsapp={self.whatsapp!r}, "
             f"email={self.email!r}, "
+            f"event_id={self.event_id}, "
             f"custom_data={self.custom_data!r})>"
         )
+
+    __table_args__ = (
+        Index("ix_participant_email_event", "email", "event_id"),  # Composite index on email and event_id
+    )

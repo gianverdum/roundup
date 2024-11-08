@@ -33,6 +33,7 @@ class Event(Base):
     tables_count = Column(Integer, nullable=False)
 
     tables = relationship("Table", back_populates="event")
+    participants = relationship("Participant", back_populates="event", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return (
