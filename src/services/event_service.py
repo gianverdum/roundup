@@ -4,7 +4,7 @@ from math import ceil
 from typing import Any, Dict, Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from src.models.event import Event
@@ -114,28 +114,40 @@ async def filter_events(
 
     Returns:
         Dict[str, Any]: A dictionary containing the filtered list of events, total records, and total pages.
+
+    Raises:
+        HTTPException: If database connection fails or no events match the filter criteria.
     """
-    query = db.query(Event)
+    try:
+        query = db.query(Event)
 
-    if name:
-        query = query.filter(Event.name.ilike(f"%{name}"))
-    if date:
-        query = query.filter(Event.date == date)
-    if location:
-        query = query.filter(Event.location.ilike(f"%{location}"))
-    if participant_limit:
-        query = query.filter(Event.participant_limit == participant_limit)
-    if max_seats_per_table:
-        query = query.filter(Event.max_seats_per_table == max_seats_per_table)
+        if name:
+            query = query.filter(Event.name.ilike(f"%{name}%"))
+        if date:
+            query = query.filter(Event.date == date)
+        if location:
+            query = query.filter(Event.location.ilike(f"%{location}%"))
+        if participant_limit:
+            query = query.filter(Event.participant_limit == participant_limit)
+        if max_seats_per_table:
+            query = query.filter(Event.max_seats_per_table == max_seats_per_table)
 
-    total_records = query.count()
-    events = query.offset(offset).limit(limit).all()
+        total_records = query.count()
+        events = query.offset(offset).limit(limit).all()
 
-    return {
-        "total_records": total_records,
-        "total_pages": ceil(total_records / limit),
-        "events": events,
-    }
+        if not events:
+            raise HTTPException(status_code=404, detail="No events found matching the filter criteria.")
+
+        return {
+            "total_records": total_records,
+            "total_pages": ceil(total_records / limit),
+            "events": events,
+        }
+
+    except SQLAlchemyError as e:
+        raise HTTPException(
+            status_code=500, detail="Database connection failed or there was an error processing the request."
+        ) from e
 
 
 async def update_event(event_id: int, event_data: EventCreate, db: Session) -> EventRead:
