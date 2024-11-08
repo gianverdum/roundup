@@ -1,5 +1,6 @@
 # src/services/event_service.py
-from typing import List
+from datetime import datetime
+from typing import List, Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
@@ -65,17 +66,61 @@ async def get_event_by_id(event_id: int, db: Session) -> EventRead:
     return db.query(Event).filter(Event.id == event_id).first()
 
 
-async def get_all_events(db: Session) -> List[EventRead]:
+async def get_all_events(db: Session, limit: int, offset: int) -> List[EventRead]:
     """
-    Retrieves a list of all events.
+    Retrieves a paginated list of all events.
 
     Parameters:
         db (Session): Database session dependency.
+        limit (int): Maximum number of events to return.
+        offset (int): Starting index for pagination.
 
     Returns:
-        List[EventRead]: A list of all event records.
+        List[EventRead]: A paginated list of all event records.
     """
-    return db.query(Event).all()
+    return db.query(Event).offset(offset).limit(limit).all()
+
+
+async def filter_events(
+    name: Optional[str],
+    date: Optional[datetime],
+    location: Optional[str],
+    participant_limit: Optional[int],
+    max_seats_per_table: Optional[int],
+    db: Session,
+    limit: int,
+    offset: int,
+) -> List[EventRead]:
+    """
+    Filters and paginates events based on optional parameters.
+
+    Parameters:
+        name (str, optional): Event name to filter by.
+        date (datetime, optional): Event date to filter by.
+        location (str, optional): Event location to filter by.
+        participant_limit (int, optional): Limit of participants to filter by.
+        max_seats_per_table (int, optional): Max seats per table to filter by.
+        db (Session): Database session dependency.
+        limit (int): Maximum number of events to return.
+        offset (int): Starting index for pagination.
+
+    Returns:
+        List[EventRead]: A paginated list of events matching the filters.
+    """
+    query = db.query(Event)
+
+    if name:
+        query = query.filter(Event.name.ilike(f"%{name}"))
+    if date:
+        query = query.filter(Event.date == date)
+    if location:
+        query = query.filter(Event.location.ilike(f"%{location}"))
+    if participant_limit:
+        query = query.filter(Event.participant_limit == participant_limit)
+    if max_seats_per_table:
+        query = query.filter(Event.max_seats_per_table == max_seats_per_table)
+
+    return query.offset(offset).limit(limit).all()
 
 
 async def update_event(event_id: int, event_data: EventCreate, db: Session) -> EventRead:
