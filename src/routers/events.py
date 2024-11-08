@@ -1,10 +1,18 @@
 # src/routers/events.py
-from fastapi import APIRouter, Depends, status
+from typing import Dict, List
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from src.database import get_db
 from src.schemas.event import EventCreate, EventRead
-from src.services.event_service import create_event
+from src.services.event_service import (
+    create_event,
+    delete_event,
+    get_all_events,
+    get_event_by_id,
+    update_event,
+)
 
 router = APIRouter()
 
@@ -47,3 +55,113 @@ async def create_event_route(event: EventCreate, db: Session = Depends(get_db)) 
         EventRead: The newly created event record.
     """
     return await create_event(event, db)
+
+
+@router.get(
+    "/api/events/{event_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=EventRead,
+    summary="Get event by ID",
+    responses={
+        200: {"description": "Event returned successfully"},
+        404: {"description": "Event not found"},
+    },
+)
+async def read_event_route(event_id: int, db: Session = Depends(get_db)) -> EventRead:
+    """
+    Retrieves an event by its ID.
+
+    Parameters:
+        event_id (int): The unique identifier of the event.
+        db (Session): Database session dependency.
+
+    Returns:
+        EventRead: The event details if found.
+
+    Raises:
+        HTTPException: If the event is not found.
+    """
+    event = await get_event_by_id(event_id, db)
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    return event
+
+
+@router.get(
+    "/api/events/",
+    status_code=status.HTTP_200_OK,
+    response_model=List[EventRead],
+    summary="Get all events",
+    responses={200: {"description": "List of events returned successfully"}},
+)
+async def read_events_route(db: Session = Depends(get_db)) -> List[EventRead]:
+    """
+    Retrieves a list of all events.
+
+    Parameters:
+        db (Session): Database session dependency.
+
+    Returns:
+        List[EventRead]: A list of all events.
+    """
+    return await get_all_events(db)
+
+
+@router.put(
+    "/api/events/{event_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=EventRead,
+    summary="Update event",
+    responses={
+        200: {"description": "Event updated successfully"},
+        404: {"description": "Event not found"},
+    },
+)
+async def update_event_route(event_id: int, event_data: EventCreate, db: Session = Depends(get_db)) -> EventRead:
+    """
+    Updates an existing event's details.
+
+    Parameters:
+        event_id (int): The unique identifier of the event.
+        event_data (EventCreate): The new data for the event.
+        db (Session): Database session dependency.
+
+    Returns:
+        EventRead: The updated event details.
+
+    Raises:
+        HTTPException: If the event is not found.
+    """
+    updated_event = await update_event(event_id, event_data, db)
+    if not updated_event:
+        raise HTTPException(status_code=status.HTTP_404, detail="Event not found")
+    return updated_event
+
+
+@router.delete(
+    "/api/events/{event_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete event",
+    responses={
+        204: {"description": "Event deleted successfully"},
+        404: {"description": "Event not found"},
+    },
+)
+async def delete_event_route(event_id: int, db: Session = Depends(get_db)) -> Dict[str, str]:
+    """
+    Deletes an event by its ID.
+
+    Parameters:
+        event_id (int): The unique identifier of the event.
+        db (Session): Database session dependency.
+
+    Returns:
+        dict: Message indicating successful deletion.
+
+    Raises:
+        HTTPException: If the event is not found.
+    """
+    success = await delete_event(event_id, db)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404, detail="Event not found")
+    return {"detail": "Event deleted Successfully"}
