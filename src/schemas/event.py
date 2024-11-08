@@ -1,5 +1,6 @@
 # src/schemas/event.py
 from datetime import datetime
+from typing import List
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -70,3 +71,58 @@ class EventRead(EventCreate):
     id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class EventPaginatedResponse(BaseModel):
+    """
+    Schema for paginated response of events.
+
+    This schema is used to return a paginated list of events with total count and pagination metadata.
+
+    Attributes:
+        items (List[EventRead]): List of events in the current page, serialized as EventRead models.
+        total_items (int): The total number of events matching the filter criteria.
+        total_pages (int): The total number of pages based on the pagination parameters.
+        current_page (int): The current page number in the pagination.
+        page_size (int): The number of items per page in the pagination.
+    """
+
+    items: List[EventRead]
+    total_items: int
+    total_pages: int
+    current_page: int
+    page_size: int
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "items": [
+                    {
+                        "id": 1,
+                        "name": "Annual Business Round",
+                        "date": "2024-12-05T15:30:00",
+                        "location": "Business Center, São Paulo",
+                        "address": "Av. Paulista, 1000 - Bela Vista, São Paulo - SP, 01310-000",
+                        "participant_limit": 50,
+                        "max_seats_per_table": 8,
+                        "tables_count": 12,
+                    },
+                    {
+                        "id": 2,
+                        "name": "Tech Summit 2024",
+                        "date": "2024-11-15T09:00:00",
+                        "location": "Tech Hub, São Paulo",
+                        "address": "Rua dos Três Irmãos, 500 - Vila Progresso, São Paulo - SP, 01000-000",
+                        "participant_limit": 100,
+                        "max_seats_per_table": 10,
+                        "tables_count": 15,
+                    },
+                ],
+                "total_items": 20,
+                "total_pages": 2,
+                "current_page": 1,
+                "page_size": 10,
+            }
+        },
+    )

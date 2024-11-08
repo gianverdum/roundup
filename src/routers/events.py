@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from src.database import get_db
-from src.schemas.event import EventCreate, EventRead
+from src.schemas.event import EventCreate, EventPaginatedResponse, EventRead
 from src.services.event_service import (
     create_event,
     delete_event,
@@ -144,26 +144,38 @@ async def read_events_route(
 @router.get(
     "/api/events/filter",
     status_code=status.HTTP_200_OK,
-    response_model=Dict[str, Any],
+    response_model=EventPaginatedResponse,
     summary="Filter events with pagination",
     responses={
         200: {
             "description": "Filtered and paginated list of events returned successfully",
             "content": {
                 "application/json": {
-                    "example": [
-                        {
-                            "id": 1,
-                            "name": "Annual Meetup",
-                            "date": "2024-12-01T14:00:00",
-                            "location": "New York",
-                            "participant_limit": 100,
-                            "max_seats_per_table": 10,
-                        }
-                    ]
+                    "example": {
+                        "items": [
+                            {
+                                "id": 1,
+                                "name": "Annual Meetup",
+                                "date": "2024-12-01T14:00:00",
+                                "location": "New York",
+                                "participant_limit": 100,
+                                "max_seats_per_table": 10,
+                            }
+                        ],
+                        "total_items": 1,
+                        "total_pages": 1,
+                        "current_page": 1,
+                        "page_size": 10,
+                    }
                 }
             },
-        }
+        },
+        404: {
+            "description": "No events found matching the filter criteria.",
+        },
+        500: {
+            "description": "Database connection failed or error in request processing.",
+        },
     },
 )
 async def filter_events_route(
@@ -175,9 +187,9 @@ async def filter_events_route(
     db: Session = Depends(get_db),
     limit: int = Query(10, ge=1, description="Limit the number of results", example=5),
     offset: int = Query(0, ge=0, description="The starting index of results", example=0),
-) -> Dict[str, Any]:
+) -> EventPaginatedResponse:
     """
-    Retrieves a paginated list of events filtered by the provided parameters, with total records and pages.
+    Retrieves a paginated list of events filtered by the provided parameters.
 
     Parameters:
         name (str, optional): Event name to filter by.
@@ -190,9 +202,22 @@ async def filter_events_route(
         offset (int): Starting index for pagination.
 
     Returns:
-        Dict[str, Any]: A dictionary containing the filtered list of events, total records, and total pages.
+        PaginatedResponse: A paginated list of events matching the filters.
+
+    Raises:
+        HTTPException: If no events are found or a database error occurs.
     """
-    return await filter_events(name, date, location, participant_limit, max_seats_per_table, db, limit, offset)
+    filter_results = await filter_events(
+        name, date, location, participant_limit, max_seats_per_table, db, limit, offset
+    )
+
+    return EventPaginatedResponse(
+        items=[EventRead.model_validate(event) for event in filter_results["events"]],
+        total_items=filter_results["total_records"],
+        total_pages=filter_results["total_pages"],
+        current_page=(offset // limit) + 1,
+        page_size=limit,
+    )
 
 
 @router.put(
