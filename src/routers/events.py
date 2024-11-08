@@ -1,7 +1,7 @@
 # src/routers/events.py
-from typing import Dict, List
+from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from src.database import get_db
@@ -139,15 +139,9 @@ async def update_event_route(event_id: int, event_data: EventCreate, db: Session
 
 
 @router.delete(
-    "/api/events/{event_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete event",
-    responses={
-        204: {"description": "Event deleted successfully"},
-        404: {"description": "Event not found"},
-    },
+    "/api/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete event", response_class=Response
 )
-async def delete_event_route(event_id: int, db: Session = Depends(get_db)) -> Dict[str, str]:
+async def delete_event_route(event_id: int, db: Session = Depends(get_db)) -> None:
     """
     Deletes an event by its ID.
 
@@ -164,4 +158,3 @@ async def delete_event_route(event_id: int, db: Session = Depends(get_db)) -> Di
     success = await delete_event(event_id, db)
     if not success:
         raise HTTPException(status_code=status.HTTP_404, detail="Event not found")
-    return {"detail": "Event deleted Successfully"}

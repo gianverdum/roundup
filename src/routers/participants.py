@@ -1,7 +1,7 @@
 # src/routers/participants.py
-from typing import Dict, List
+from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from src.database import get_db
@@ -202,12 +202,9 @@ async def update_participant_route(
     "/api/participants/{participant_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete participant",
-    responses={
-        204: {"description": "Participant deleted successfully"},
-        404: {"description": "Participant not found with the specified ID"},
-    },
+    response_class=Response,
 )
-async def delete_participant_route(participant_id: int, db: Session = Depends(get_db)) -> Dict[str, str]:
+async def delete_participant_route(participant_id: int, db: Session = Depends(get_db)) -> None:
     """
     Deletes a participant by their unique identifier.
 
@@ -223,4 +220,3 @@ async def delete_participant_route(participant_id: int, db: Session = Depends(ge
     success = await delete_participant(participant_id, db)
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Participant not found")
-    return {"detail": "Participant deleted successfully"}
