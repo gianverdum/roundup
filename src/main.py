@@ -1,5 +1,6 @@
 # src/main.py
 import logging
+import traceback
 from typing import Callable
 
 from dotenv import load_dotenv
@@ -30,6 +31,9 @@ app = FastAPI(
 )
 
 
+logging.basicConfig(level=logging.DEBUG)
+
+
 @app.middleware("http")
 async def db_error_handler(request: Request, call_next: Callable[[Request], JSONResponse]) -> JSONResponse:
     """Middleware for handling database errors with detailed responses."""
@@ -43,8 +47,16 @@ async def db_error_handler(request: Request, call_next: Callable[[Request], JSON
         logging.error(f"SQLAlchemy error: {sql_err}")
         return JSONResponse(status_code=500, content={"detail": f"Unexpected database error: {str(sql_err)}"})
     except Exception as e:
-        logging.error(f"Unexpected error: {e}")
-        return JSONResponse(status_code=500, content={"detail": "An unexpected error occurred"})
+        error_trace = traceback.format_exc()  # Capture the traceback
+        logging.error(f"Unexpected error: {e}\n{error_trace}")  # Log full traceback
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": "An unexpected error occurred",
+                "error": str(e),
+                "traceback": error_trace,  # Return traceback in response for debugging
+            },
+        )
 
 
 # CORS middleware
