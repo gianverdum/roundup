@@ -69,7 +69,7 @@ async def get_event_by_id(event_id: int, db: Session) -> EventRead:
 
 async def get_all_events(db: Session, limit: int, offset: int) -> Dict[str, Any]:
     """
-    Retrieves a paginated list of all events.
+    Retrieves a paginated list of all events with the total number of records and pages.
 
     Parameters:
         db (Session): Database session dependency.
@@ -77,15 +77,17 @@ async def get_all_events(db: Session, limit: int, offset: int) -> Dict[str, Any]
         offset (int): Starting index for pagination.
 
     Returns:
-        Dict[str, Any]: A dictionary containing the list of events, total records, and total pages.
+        Dict[str, Any]: A dictionary compatible with EventPaginatedResponse.
     """
     total_records = db.query(Event).count()
     events = db.query(Event).offset(offset).limit(limit).all()
 
     return {
-        "total_records": total_records,
+        "items": [EventRead.model_validate(event) for event in events],
+        "total_items": total_records,
         "total_pages": ceil(total_records / limit),
-        "events": events,
+        "current_page": (offset // limit) + 1,
+        "page_size": limit,
     }
 
 
