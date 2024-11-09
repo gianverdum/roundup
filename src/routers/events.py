@@ -1,6 +1,6 @@
 # src/routers/events.py
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
@@ -62,41 +62,50 @@ async def create_event_route(event: EventCreate, db: Session = Depends(get_db)) 
 @router.get(
     "/api/events/",
     status_code=status.HTTP_200_OK,
-    response_model=Dict[str, Any],
+    response_model=EventPaginatedResponse,
     summary="Get all events with pagination",
     responses={
         200: {
             "description": "List of paginated events returned successfully",
             "content": {
                 "application/json": {
-                    "example": [
-                        {
-                            "id": 1,
-                            "name": "Annual Meetup",
-                            "date": "2024-12-01T14:00:00",
-                            "location": "New York",
-                            "participant_limit": 100,
-                            "max_seats_per_table": 10,
-                        },
-                        {
-                            "id": 2,
-                            "name": "Tech Conference",
-                            "date": "2024-11-20T10:00:00",
-                            "location": "San Francisco",
-                            "participant_limit": 200,
-                            "max_seats_per_table": 8,
-                        },
-                    ]
+                    "example": {
+                        "items": [
+                            {
+                                "id": 1,
+                                "name": "Annual Meetup",
+                                "date": "2024-12-01T14:00:00",
+                                "location": "New York",
+                                "participant_limit": 100,
+                                "max_seats_per_table": 10,
+                            },
+                            {
+                                "id": 2,
+                                "name": "Tech Conference",
+                                "date": "2024-11-20T10:00:00",
+                                "location": "San Francisco",
+                                "participant_limit": 200,
+                                "max_seats_per_table": 8,
+                            },
+                        ],
+                        "total_items": 2,
+                        "total_pages": 1,
+                        "current_page": 1,
+                        "page_size": 10,
+                    }
                 }
             },
-        }
+        },
+        500: {
+            "description": "Database connection failed or error in request processing.",
+        },
     },
 )
 async def read_events_route(
     db: Session = Depends(get_db),
     limit: int = Query(10, ge=1, description="Limit the number of results", example=5),
     offset: int = Query(0, ge=0, description="The starting index of results", example=0),
-) -> Dict[str, Any]:
+) -> EventPaginatedResponse:
     """
     Retrieves a paginated list of all events with total records and pages.
 
@@ -106,9 +115,17 @@ async def read_events_route(
         offset (int): Starting index for pagination.
 
     Returns:
-        Dict[str, Any]: A dictionary containing the list of events, total records, and total pages.
+        EventPaginatedResponse: A paginated list of all events.
     """
-    return await get_all_events(db, limit=limit, offset=offset)
+    filter_results = await get_all_events(db, limit=limit, offset=offset)
+
+    return EventPaginatedResponse(
+        items=[EventRead.model_validate(event) for event in filter_results["events"]],
+        total_items=filter_results["total_records"],
+        total_pages=filter_results["total_pages"],
+        current_page=(offset // limit) + 1,
+        page_size=limit,
+    )
 
 
 @router.get(
