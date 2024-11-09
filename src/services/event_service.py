@@ -79,16 +79,20 @@ async def get_all_events(db: Session, limit: int, offset: int) -> Dict[str, Any]
     Returns:
         Dict[str, Any]: A dictionary compatible with EventPaginatedResponse.
     """
-    total_records = db.query(Event).count()
-    events = db.query(Event).offset(offset).limit(limit).all()
+    try:
+        total_records = db.query(Event).count()
+        events = db.query(Event).offset(offset).limit(limit).all()
 
-    return {
-        "items": [EventRead.model_validate(event) for event in events],
-        "total_items": total_records,
-        "total_pages": ceil(total_records / limit),
-        "current_page": (offset // limit) + 1,
-        "page_size": limit,
-    }
+        return {
+            "total_records": total_records,
+            "total_pages": ceil(total_records / limit),
+            "events": events,
+        }
+
+    except SQLAlchemyError as e:
+        raise HTTPException(
+            status_code=500, detail="Database query failed. Please check the database connection or query logic."
+        ) from e
 
 
 async def filter_events(
