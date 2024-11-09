@@ -1,14 +1,19 @@
 # src/routers/participants.py
-from typing import List
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from src.database import get_db
-from src.schemas.participant import ParticipantCreate, ParticipantRead
+from src.schemas.participant import (
+    ParticipantCreate,
+    ParticipantPaginatedResponse,
+    ParticipantRead,
+)
 from src.services.participant_service import (
     create_participant,
     delete_participant,
+    filter_participants,
     get_all_participants,
     get_participant_by_id,
     update_participant,
@@ -65,6 +70,160 @@ async def create_participant_route(participant: ParticipantCreate, db: Session =
 
 
 @router.get(
+    "/api/participants/",
+    status_code=status.HTTP_200_OK,
+    response_model=ParticipantPaginatedResponse,
+    summary="Get all participants with pagination",
+    responses={
+        200: {
+            "description": "List of participants returned successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "items": [
+                            {
+                                "id": 1,
+                                "full_name": "John Doe",
+                                "company_name": "Tech Corp",
+                                "whatsapp": "+5511998765432",
+                                "email": "johndoe@example.com",
+                                "custom_data": {"additional_info": "Special requirements"},
+                            },
+                            {
+                                "id": 2,
+                                "full_name": "Jane Smith",
+                                "company_name": "Business Inc",
+                                "whatsapp": "+5511987654321",
+                                "email": "janesmith@example.com",
+                                "custom_data": {"additional_info": "Vegetarian meal"},
+                            },
+                        ],
+                        "total_items": 50,
+                        "total_pages": 5,
+                        "current_page": 1,
+                        "page_size": 10,
+                    }
+                }
+            },
+        },
+        400: {"description": "Bad Request"},
+        404: {"description": "Participants not found"},
+    },
+)
+async def read_participants_route(
+    db: Session = Depends(get_db),
+    limit: int = Query(10, ge=1, description="Limit the number of results", example=5),
+    offset: int = Query(0, ge=0, description="The starting index of results", example=0),
+) -> ParticipantPaginatedResponse:
+    """
+    Retrieves a paginated list of participants.
+
+    Parameters:
+        db (Session): Database session dependency.
+        limit (int): Maximum number of participants to return.
+        offset (int): Starting index for pagination.
+
+    Returns:
+        ParticipantPaginatedResponse: A paginated list of participants.
+    """
+    filter_results = await get_all_participants(db, limit=limit, offset=offset)
+
+    return ParticipantPaginatedResponse(
+        items=[ParticipantRead.model_validate(participant) for participant in filter_results["participants"]],
+        total_items=filter_results["total_records"],
+        total_pages=filter_results["total_pages"],
+        current_page=(offset // limit) + 1,
+        page_size=limit,
+    )
+
+
+@router.get(
+    "/api/participants/filter",
+    status_code=status.HTTP_200_OK,
+    response_model=ParticipantPaginatedResponse,
+    summary="Get participants with filters",
+    responses={
+        200: {
+            "description": "Filtered list of participants returned successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "items": [
+                            {
+                                "id": 1,
+                                "full_name": "John Doe",
+                                "company_name": "Tech Corp",
+                                "whatsapp": "+5511998765432",
+                                "email": "johndoe@example.com",
+                                "custom_data": {"additional_info": "Special requirements"},
+                            },
+                        ],
+                        "total_items": 50,
+                        "total_pages": 5,
+                        "current_page": 1,
+                        "page_size": 10,
+                    }
+                }
+            },
+        },
+        400: {"description": "Bad Request"},
+        404: {"description": "No participants found"},
+    },
+)
+async def filter_participants_route(
+    db: Session = Depends(get_db),
+    full_name: Optional[str] = Query(None, description="Full name of the participant"),
+    company_name: Optional[str] = Query(None, description="Company name of the participant"),
+    whatsapp: Optional[str] = Query(None, description="WhatsApp number of the participant"),
+    email: Optional[str] = Query(None, description="Email of the participant"),
+    event_id: Optional[int] = Query(None, description="Event ID to filter participants by"),
+    limit: int = Query(10, ge=1, description="Limit the number of results", example=5),
+    offset: int = Query(0, ge=0, description="The starting index of results", example=0),
+) -> ParticipantPaginatedResponse:
+    """
+    Retrieve a list of participants based on the provided filters, with pagination.
+
+    This route allows you to filter participants by different criteria, such as full name,
+    company name, WhatsApp, email, and event ID, and supports pagination to limit the results.
+
+    Args:
+        db (Session): The database session dependency.
+        full_name (str, optional): The full name of the participant to filter by.
+        company_name (str, optional): The company name of the participant to filter by.
+        whatsapp (str, optional): The WhatsApp number of the participant to filter by.
+        email (str, optional): The email of the participant to filter by.
+        event_id (int, optional): The event ID to filter participants by.
+        limit (int): The maximum number of participants to return. Default is 10.
+        offset (int): The starting index for pagination. Default is 0.
+
+    Returns:
+        ParticipantPaginatedResponse: A paginated list of participants matching the filter criteria,
+        including the total number of items, total pages, current page, and page size.
+
+    Raises:
+        HTTPException: If the database query fails or no participants are found.
+    """
+    filter_results = await filter_participants(
+        full_name=full_name,
+        company_name=company_name,
+        whatsapp=whatsapp,
+        email=email,
+        event_id=event_id,
+        db=db,
+        limit=limit,
+        offset=offset,
+    )
+
+    return ParticipantPaginatedResponse(
+        items=[ParticipantRead.model_validate(participant) for participant in filter_results["participants"]],
+        total_items=filter_results["total_records"],
+        total_pages=filter_results["total_pages"],
+        current_page=(offset // limit) + 1,
+        page_size=limit,
+    )
+
+
+@router.get(
     "/api/participants/{participant_id}",
     status_code=status.HTTP_200_OK,
     response_model=ParticipantRead,
@@ -105,48 +264,6 @@ async def read_participant_route(participant_id: int, db: Session = Depends(get_
     if not participant:
         raise HTTPException(status_code=status.HTTP_404, detail="Participant not found")
     return participant
-
-
-@router.get(
-    "/api/participants/",
-    status_code=status.HTTP_200_OK,
-    response_model=List[ParticipantRead],
-    summary="Get all participants",
-    responses={
-        200: {
-            "description": "Participant's list returned successfully",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "full_name": "John Doe",
-                        "company_name": "My business",
-                        "whatsapp": "11911112222",
-                        "email": "email@gmail.com",
-                        "custom_data": {"preferences": {"theme": "dark", "notifications": True}},
-                        "event_id": 1,
-                    }
-                }
-            },
-        },
-        400: {"description": "Bad Request"},
-        404: {"description": "Participant not found"},
-    },
-)
-async def read_participants_route(db: Session = Depends(get_db)) -> List[ParticipantRead]:
-    """
-    Retrieve a list of all registered participants in the database.
-
-    Parameters:
-        db (Session): The database session to perform the query.
-
-    Returns:
-        List[ParticipantRead]: A list of participants.
-
-    Raises:
-        HTTPException 400: If the request format is invalid.
-        HTTPException 404: If no participants are found.
-    """
-    return await get_all_participants(db)
 
 
 @router.put(
