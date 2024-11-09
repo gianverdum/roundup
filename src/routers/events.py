@@ -60,36 +60,6 @@ async def create_event_route(event: EventCreate, db: Session = Depends(get_db)) 
 
 
 @router.get(
-    "/api/events/{event_id}",
-    status_code=status.HTTP_200_OK,
-    response_model=EventRead,
-    summary="Get event by ID",
-    responses={
-        200: {"description": "Event returned successfully"},
-        404: {"description": "Event not found"},
-    },
-)
-async def read_event_route(event_id: int, db: Session = Depends(get_db)) -> EventRead:
-    """
-    Retrieves an event by its ID.
-
-    Parameters:
-        event_id (int): The unique identifier of the event.
-        db (Session): Database session dependency.
-
-    Returns:
-        EventRead: The event details if found.
-
-    Raises:
-        HTTPException: If the event is not found.
-    """
-    event = await get_event_by_id(event_id, db)
-    if not event:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
-    return event
-
-
-@router.get(
     "/api/events/",
     status_code=status.HTTP_200_OK,
     response_model=Dict[str, Any],
@@ -218,6 +188,36 @@ async def filter_events_route(
         current_page=(offset // limit) + 1,
         page_size=limit,
     )
+
+
+@router.get(
+    "/api/events/{event_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=EventRead,
+    summary="Get event by ID",
+    responses={
+        200: {"description": "Event returned successfully"},
+        404: {"description": "Event not found"},
+    },
+)
+async def read_event_route(event_id: int, db: Session = Depends(get_db)) -> EventRead:
+    """
+    Retrieves an event by its ID.
+
+    Parameters:
+        event_id (int): The unique identifier of the event.
+        db (Session): Database session dependency.
+
+    Returns:
+        EventRead: The event details if found.
+
+    Raises:
+        HTTPException: If the event is not found.
+    """
+    event = await get_event_by_id(event_id, db)
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    return event
 
 
 @router.put(
