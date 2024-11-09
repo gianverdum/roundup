@@ -1,7 +1,9 @@
 # src/services/participant_service.py
-from typing import List
+from math import ceil
+from typing import Any, Dict, Optional
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from src.models.event import Event
@@ -65,17 +67,96 @@ async def get_participant_by_id(participant_id: int, db: Session) -> Participant
     return db.query(Participant).filter(Participant.id == participant_id).first()
 
 
-async def get_all_participants(db: Session) -> List[ParticipantRead]:
+async def get_all_participants(db: Session, limit: int, offset: int) -> Dict[str, Any]:
     """
-    Retrieve all participants stored in the database.
+    Retrieves a paginated list of all participants with the total number of records and pages.
 
     Parameters:
-        db (Session): The database session to perform the query.
+        db (Session): Database session dependency.
+        limit (int): Maximum number of participants to return.
+        offset (int): Starting index for pagination.
 
     Returns:
-        List[ParticipantRead]: A list of all participants.
+        Dict[str, Any]: A dictionary compatible with ParticipantPaginatedResponse.
     """
-    return db.query(Participant).all()
+    try:
+        total_records = db.query(Participant).count()
+        participants = db.query(Participant).offset(offset).limit(limit).all()
+
+        return {
+            "total_records": total_records,
+            "total_pages": ceil(total_records / limit),
+            "participants": participants,
+        }
+
+    except SQLAlchemyError as e:
+        raise HTTPException(
+            status_code=500, detail="Database query failed. Please check the database connection or query logic."
+        ) from e
+
+
+async def filter_participants(
+    full_name: Optional[str],
+    company_name: Optional[str],
+    whatsapp: Optional[str],
+    email: Optional[str],
+    event_id: Optional[int],
+    db: Session,
+    limit: int,
+    offset: int,
+) -> Dict[str, Any]:
+    """
+    Filters and paginates participants based on optional parameters.
+
+    This function performs a query to filter participants by the specified criteria (full name, company name,
+    WhatsApp, email, event ID, and custom data) and returns a paginated list of results.
+
+    Args:
+        full_name (str, optional): The full name of the participant to filter by.
+        company_name (str, optional): The company name of the participant to filter by.
+        whatsapp (str, optional): The WhatsApp number of the participant to filter by.
+        email (str, optional): The email of the participant to filter by.
+        db (Session): The database session dependency.
+        limit (int): The maximum number of participants to return.
+        offset (int): The starting index for pagination.
+
+    Returns:
+        Dict[str, Any]: A dictionary containing the filtered list of participants, the total records,
+        and the total number of pages based on the provided pagination.
+
+    Raises:
+        HTTPException: If the database connection fails, or no participants match the filter criteria.
+    """
+    try:
+        query = db.query(Participant)
+
+        if full_name:
+            query = query.filter(Participant.full_name.ilike(f"%{full_name}%"))
+        if company_name:
+            query = query.filter(Participant.company_name.ilike(f"%{company_name}%"))
+        if whatsapp:
+            query = query.filter(Participant.whatsapp.ilike(f"%{whatsapp}%"))
+        if email:
+            query = query.filter(Participant.email.ilike(f"%{email}%"))
+        if event_id:
+            query = query.filter(Participant.event_id == event_id)
+
+        total_records = query.count()
+        participants = query.offset(offset).limit(limit).all()
+
+        if not participants:
+            raise HTTPException(status_code=404, detail="No participants found matching the filter criteria.")
+
+        return {
+            "total_records": total_records,
+            "total_pages": ceil(total_records / limit),
+            "participants": participants,
+        }
+
+    except SQLAlchemyError as e:
+        raise HTTPException(
+            status_code=500, detail="Database connection failed or there was an error processing the request."
+        ) from e
 
 
 async def update_participant(participant_id: int, participant_data: ParticipantCreate, db: Session) -> ParticipantRead:
