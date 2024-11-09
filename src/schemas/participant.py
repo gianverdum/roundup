@@ -1,6 +1,6 @@
 # src/schemas/participant.py
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -85,3 +85,54 @@ class ParticipantRead(ParticipantCreate):
     id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ParticipantPaginatedResponse(BaseModel):
+    """
+    Schema for paginated response of participants.
+
+    This schema is used to return a paginated list of participants with total count and pagination metadata.
+
+    Attributes:
+        items (List[ParticipantRead]): List of participants in the current page, serialized as ParticipantRead models.
+        total_items (int): The total number of participants matching the filter criteria.
+        total_pages (int): The total number of pages based on the pagination parameters.
+        current_page (int): The current page number in the pagination.
+        page_size (int): The number of items per page in the pagination.
+    """
+
+    items: List[ParticipantRead]
+    total_items: int
+    total_pages: int
+    current_page: int
+    page_size: int
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "items": [
+                    {
+                        "id": 1,
+                        "full_name": "John Doe",
+                        "company_name": "Tech Corp",
+                        "whatsapp": "+5511998765432",
+                        "email": "johndoe@example.com",
+                        "custom_data": {"additional_info": "Special requirements"},
+                    },
+                    {
+                        "id": 2,
+                        "full_name": "Jane Smith",
+                        "company_name": "Business Inc",
+                        "whatsapp": "+5511987654321",
+                        "email": "janesmith@example.com",
+                        "custom_data": {"additional_info": "Vegetarian meal"},
+                    },
+                ],
+                "total_items": 50,
+                "total_pages": 5,
+                "current_page": 1,
+                "page_size": 10,
+            }
+        },
+    )

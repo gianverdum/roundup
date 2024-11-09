@@ -1,4 +1,6 @@
 # src/schemas/table.py
+from typing import List
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -43,3 +45,50 @@ class TableResponse(BaseModel):
     event_id: int
     table_number: int
     seats: int
+
+
+class TablePaginatedResponse(BaseModel):
+    """
+    Schema for paginated response of tables.
+
+    This schema is used to return a paginated list of tables with total count and pagination metadata.
+
+    Attributes:
+        items (List[TableResponse]): List of tables in the current page, serialized as TableResponse models.
+        total_items (int): The total number of tables matching the filter criteria.
+        total_pages (int): The total number of pages based on the pagination parameters.
+        current_page (int): The current page number in the pagination.
+        page_size (int): The number of items per page in the pagination.
+    """
+
+    items: List[TableResponse]
+    total_items: int
+    total_pages: int
+    current_page: int
+    page_size: int
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "items": [
+                    {
+                        "id": 1,
+                        "event_id": 1,
+                        "table_number": 1,
+                        "seats": 8,
+                    },
+                    {
+                        "id": 2,
+                        "event_id": 1,
+                        "table_number": 2,
+                        "seats": 8,
+                    },
+                ],
+                "total_items": 30,
+                "total_pages": 3,
+                "current_page": 1,
+                "page_size": 10,
+            }
+        },
+    )

@@ -1,7 +1,9 @@
 # src/services/table_service.py
-from typing import List
+from math import ceil
+from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from src.models.event import Event
@@ -71,11 +73,81 @@ async def get_table_by_id(table_id: int, db: Session) -> TableResponse:
     return db.query(Table).filter(Table.id == table_id).first()
 
 
-async def get_all_tables(db: Session) -> List[TableResponse]:
-    """ "
-    Description to be updated here
+async def get_all_tables(db: Session, limit: int, offset: int) -> Dict[str, Any]:
     """
-    return db.query(Table).all()
+    Retrieves a paginated list of all tables with the total number of records and pages.
+
+    Parameters:
+        db (Session): Database session dependency.
+        limit (int): Maximum number of tables to return.
+        offset (int): Starting index for pagination.
+
+    Returns:
+        Dict[str, Any]: A dictionary compatible with TablePaginatedResponse.
+    """
+    try:
+        total_records = db.query(Table).count()
+        tables = db.query(Table).offset(offset).limit(limit).all()
+
+        return {
+            "total_records": total_records,
+            "total_pages": ceil(total_records / limit),
+            "tables": tables,
+        }
+
+    except SQLAlchemyError as e:
+        raise HTTPException(
+            status_code=500, detail="Database query failed. Please check the database connection or query logic."
+        ) from e
+
+
+async def filter_tables(
+    event_id: Optional[int],
+    table_number: Optional[int],
+    db: Session,
+    limit: int,
+    offset: int,
+) -> Dict[str, Any]:
+    """
+    Filters and paginates tables based on optional parameters.
+
+    Parameters:
+        event_id (int, optional): Event ID to filter by.
+        table_number (int, optional): Table number to filter by.
+        db (Session): Database session dependency.
+        limit (int): Maximum number of tables to return.
+        offset (int): Starting index for pagination.
+
+    Returns:
+        Dict[str, Any]: A dictionary containing the filtered list of tables, total records, and total pages.
+
+    Raises:
+        HTTPException: If database connection fails or no tables match the filter criteria.
+    """
+    try:
+        query = db.query(Table)
+
+        if event_id:
+            query = query.filter(Table.event_id == event_id)
+        if table_number:
+            query = query.filter(Table.table_number == table_number)
+
+        total_records = query.count()
+        tables = query.offset(offset).limit(limit).all()
+
+        if not tables:
+            raise HTTPException(status_code=404, detail="No tables found matching the filter criteria.")
+
+        return {
+            "total_records": total_records,
+            "total_pages": ceil(total_records / limit),
+            "tables": tables,
+        }
+
+    except SQLAlchemyError as e:
+        raise HTTPException(
+            status_code=500, detail="Database connection failed or there was an error processing the request."
+        ) from e
 
 
 async def update_table(table_id: int, table_data: TableCreate, db: Session) -> TableResponse:
