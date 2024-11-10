@@ -103,8 +103,8 @@ async def create_event_route(event: EventCreate, db: Session = Depends(get_db)) 
 )
 async def read_events_route(
     db: Session = Depends(get_db),
-    limit: int = Query(10, ge=1, description="Limit the number of results", example=5),
-    offset: int = Query(0, ge=0, description="The starting index of results", example=0),
+    limit: int = Query(10, ge=1, description="Limit the number of results", examples=5),
+    offset: int = Query(0, ge=0, description="The starting index of results", examples=0),
 ) -> EventPaginatedResponse:
     """
     Retrieves a paginated list of all events with total records and pages.
@@ -166,14 +166,14 @@ async def read_events_route(
     },
 )
 async def filter_events_route(
-    name: Optional[str] = Query(None, description="Filter by event name", example="Tech Conference"),
-    date: Optional[datetime] = Query(None, description="Filter by event date", example="2024-11-20T10:00:00"),
-    location: Optional[str] = Query(None, description="Filter by event location", example="San Francisco"),
-    participant_limit: Optional[int] = Query(None, description="Filter by participant limit", example=200),
-    max_seats_per_table: Optional[int] = Query(None, description="Filter by max seats per table", example=8),
+    name: Optional[str] = Query(None, description="Filter by event name", examples="Tech Conference"),
+    date: Optional[datetime] = Query(None, description="Filter by event date", examples="2024-11-20T10:00:00"),
+    location: Optional[str] = Query(None, description="Filter by event location", examples="San Francisco"),
+    participant_limit: Optional[int] = Query(None, description="Filter by participant limit", examples=200),
+    max_seats_per_table: Optional[int] = Query(None, description="Filter by max seats per table", examples=8),
     db: Session = Depends(get_db),
-    limit: int = Query(10, ge=1, description="Limit the number of results", example=5),
-    offset: int = Query(0, ge=0, description="The starting index of results", example=0),
+    limit: int = Query(10, ge=1, description="Limit the number of results", examples=5),
+    offset: int = Query(0, ge=0, description="The starting index of results", examples=0),
 ) -> EventPaginatedResponse:
     """
     Retrieves a paginated list of events filtered by the provided parameters.
@@ -264,7 +264,7 @@ async def update_event_route(event_id: int, event_data: EventCreate, db: Session
     """
     updated_event = await update_event(event_id, event_data, db)
     if not updated_event:
-        raise HTTPException(status_code=status.HTTP_404, detail="Event not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
     return updated_event
 
 
@@ -287,4 +287,4 @@ async def delete_event_route(event_id: int, db: Session = Depends(get_db)) -> No
     """
     success = await delete_event(event_id, db)
     if not success:
-        raise HTTPException(status_code=status.HTTP_404, detail="Event not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")

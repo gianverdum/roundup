@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from src.models.event import Event
 from src.models.table import Table
-from src.schemas.table import TableCreate, TableResponse
+from src.schemas.table import TableCreate, TableResponse, TableUpdate
 
 
 def create_tables(db: Session, table_data: TableCreate) -> List[TableResponse]:
@@ -150,7 +150,7 @@ async def filter_tables(
         ) from e
 
 
-async def update_table(table_id: int, table_data: TableCreate, db: Session) -> TableResponse:
+async def update_table(table_id: int, table_data: TableUpdate, db: Session) -> Optional[dict[str, Any]]:
     """
     Updates table details.
 
@@ -167,13 +167,16 @@ async def update_table(table_id: int, table_data: TableCreate, db: Session) -> T
     """
     table = db.query(Table).filter(Table.id == table_id).first()
     if not table:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Table not found")
+        return None
+
     for key, value in table_data.model_dump().items():
         setattr(table, key, value)
+
     try:
         db.commit()
         db.refresh(table)
-        return TableResponse.model_validate(table)
+
+        return {"id": table.id, "event_id": table.event_id, "table_number": table.table_number, "seats": table.seats}
     except Exception as e:
         db.rollback()
         print("Unexpected Error:", e)

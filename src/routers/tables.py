@@ -5,7 +5,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from src.database import get_db
-from src.schemas.table import TableCreate, TablePaginatedResponse, TableResponse
+from src.schemas.table import (
+    TableCreate,
+    TablePaginatedResponse,
+    TableResponse,
+    TableUpdate,
+)
 from src.services.table_service import (
     create_tables,
     delete_table,
@@ -105,8 +110,8 @@ async def register_tables(table_data: TableCreate, db: Session = Depends(get_db)
 )
 async def read_tables_route(
     db: Session = Depends(get_db),
-    limit: int = Query(10, ge=1, description="Limit the number of results", example=5),
-    offset: int = Query(0, ge=0, description="The starting index of results", example=0),
+    limit: int = Query(10, ge=1, description="Limit the number of results", examples=5),
+    offset: int = Query(0, ge=0, description="The starting index of results", examples=0),
 ) -> TablePaginatedResponse:
     """
     Retrieves a paginated list of all tables with total records and pages.
@@ -166,11 +171,11 @@ async def read_tables_route(
     },
 )
 async def filter_tables_route(
-    event_id: Optional[int] = Query(None, description="Filter by event ID", example=1),
-    table_number: Optional[int] = Query(None, description="Filter by table number", example=1),
+    event_id: Optional[int] = Query(None, description="Filter by event ID", examples=1),
+    table_number: Optional[int] = Query(None, description="Filter by table number", examples=1),
     db: Session = Depends(get_db),
-    limit: int = Query(10, ge=1, description="Limit the number of results", example=5),
-    offset: int = Query(0, ge=0, description="The starting index of results", example=0),
+    limit: int = Query(10, ge=1, description="Limit the number of results", examples=5),
+    offset: int = Query(0, ge=0, description="The starting index of results", examples=0),
 ) -> TablePaginatedResponse:
     """
     Retrieves a paginated list of tables filtered by the provided parameters.
@@ -265,7 +270,7 @@ async def read_table_route(table_id: int, db: Session = Depends(get_db)) -> Tabl
         404: {"description": "Table not found"},
     },
 )
-async def update_table_route(table_id: int, table_data: TableCreate, db: Session = Depends(get_db)) -> TableResponse:
+async def update_table_route(table_id: int, table_data: TableUpdate, db: Session = Depends(get_db)) -> TableResponse:
     """
     Updates a table's details based on table ID.
 
@@ -283,7 +288,7 @@ async def update_table_route(table_id: int, table_data: TableCreate, db: Session
     updated_table = await update_table(table_id, table_data, db)
     if not updated_table:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Table not found")
-    return updated_table
+    return TableResponse.model_validate(updated_table)
 
 
 @router.delete(

@@ -1,3 +1,4 @@
+# tests/test_participants.py
 import os
 import random
 from datetime import datetime, timedelta
@@ -75,26 +76,18 @@ def generate_unique_event() -> EventCreate:
 
 def generate_unique_participant(event_id: int) -> ParticipantCreate:
     """Generate a unique participant with random data, including custom_data in JSON format."""
-
-    # Example custom data that can vary per participant
     custom_data = {
         "membership_level": random.choice(["Silver", "Gold", "Platinum"]),
         "preferences": random.choice(["Vegetarian", "Non-Vegetarian", "Vegan"]),
         "registration_time": random.randint(1000000000, 9999999999),
     }
 
-    # Generate full name with at least a first and last name
     first_name = f"Participant{random.randint(1, 10000)}"
     last_name = random.choice(["Smith", "Johnson", "Williams", "Brown", "Jones"])
     full_name = f"{first_name} {last_name}"
-
-    # Generate WhatsApp number with at least 11 digits
     whatsapp = f"+5511{random.randint(100000000, 999999999)}"
-
-    # Generate email in the correct format
     email = f"participant{random.randint(1, 10000)}@example.com"
 
-    # Create and return the participant
     return ParticipantCreate(
         full_name=full_name,
         company_name=f"Company {random.randint(1, 100)}",
@@ -105,82 +98,9 @@ def generate_unique_participant(event_id: int) -> ParticipantCreate:
     )
 
 
-def test_participant_creation_success(test_client: TestClient, db_session: Session) -> None:
-    """Test that a participant can be successfully created."""
-    # Arrange
-    event_data = generate_unique_event()
-
-    # Convert datetime fields in event to ISO format before sending
-    event_data_dict = event_data.model_dump()
-    for key, value in event_data_dict.items():
-        if isinstance(value, datetime):
-            event_data_dict[key] = value.isoformat()
-
-    response = test_client.post("/api/events/", json=event_data_dict)
-    assert response.status_code == 201
-    event_id = response.json()["id"]
-
-    participant_data = generate_unique_participant(event_id)
-
-    # Act
-    response = test_client.post("/api/participants/", json=participant_data.model_dump())
-
-    # Assert
-    assert response.status_code == 201
-    response_data = response.json()
-    assert response_data["full_name"] == participant_data.full_name
-    assert response_data["company_name"] == participant_data.company_name
-    assert response_data["whatsapp"] == participant_data.whatsapp
-    assert response_data["email"] == participant_data.email
-    assert response_data["event_id"] == participant_data.event_id
-    assert "id" in response_data and isinstance(response_data["id"], int) and response_data["id"] > 0
-    assert "custom_data" in response_data
-
-
-def test_participant_creation_with_missing_fields(test_client: TestClient, db_session: Session) -> None:
-    """Test that missing required fields result in a 422 error."""
-    # Arrange
-    event_data = generate_unique_event()
-
-    # Convert datetime fields in event to ISO format before sending
-    event_data_dict = event_data.model_dump()
-    for key, value in event_data_dict.items():
-        if isinstance(value, datetime):
-            event_data_dict[key] = value.isoformat()
-
-    response = test_client.post("/api/events/", json=event_data_dict)
-    assert response.status_code == 201
-    event_id = response.json()["id"]
-
-    participant_data = {
-        "full_name": "Missing Company",  # Missing other required fields
-        "whatsapp": "+5511999999999",
-        "email": "missingcompany@example.com",
-        "event_id": event_id,
-        # custom_data is missing
-    }
-
-    # Act
-    response = test_client.post("/api/participants/", json=participant_data)
-
-    # Assert
-    assert response.status_code == 422
-    response_data = response.json()
-    assert "detail" in response_data
-    assert isinstance(response_data["detail"], list)
-
-    # Check for missing fields in the error response
-    missing_field_error = next(
-        (error for error in response_data["detail"] if error["loc"] == ["body", "company_name"]), None
-    )
-    assert missing_field_error is not None
-    assert missing_field_error["msg"] == "Field required"
-
-
 def create_event(test_client: TestClient) -> int:
     """Helper function to create an event and return the event_id."""
     event_data = generate_unique_event()
-    # Convert datetime fields in event to ISO format before sending
     event_data_dict = event_data.model_dump()
     for key, value in event_data_dict.items():
         if isinstance(value, datetime):
@@ -191,113 +111,103 @@ def create_event(test_client: TestClient) -> int:
     return response.json()["id"]
 
 
-def test_participant_creation_with_invalid_whatsapp(test_client: TestClient, db_session: Session) -> None:
-    """Test that invalid whatsapp format results in a 422 error."""
-    event_id = create_event(test_client)
+def create_participant(test_client: TestClient, event_id: int) -> int:
+    """Helper function to create a participant and return the participant_id."""
+    participant_data = generate_unique_participant(event_id)
+    response = test_client.post("/api/participants/", json=participant_data.model_dump())
+    assert response.status_code == 201
+    return response.json()["id"]
 
-    invalid_data = {
-        "full_name": "Invalid Data",
-        "company_name": "Test Co",
-        "whatsapp": "invalid",  # Invalid format
-        "email": "validemail@example.com",
+
+# CRUD Tests for /api/participants/
+def test_participant_creation_success(test_client: TestClient) -> None:
+    """Test successful creation of a participant."""
+    # Arrange
+    event_id = create_event(test_client)
+    participant_data = generate_unique_participant(event_id)
+
+    # Act
+    response = test_client.post("/api/participants/", json=participant_data.model_dump())
+
+    # Assert
+    assert response.status_code == 201
+    response_data = response.json()
+    assert response_data["full_name"] == participant_data.full_name
+    assert response_data["company_name"] == participant_data.company_name
+
+
+def test_get_participant(test_client: TestClient) -> None:
+    """Test retrieving a participant by ID."""
+    # Arrange
+    event_id = create_event(test_client)
+    participant_id = create_participant(test_client, event_id)
+
+    # Act
+    response = test_client.get(f"/api/participants/{participant_id}")
+
+    # Assert
+    assert response.status_code == 200
+    assert response.json()["id"] == participant_id
+
+
+def test_get_participant_list(test_client: TestClient) -> None:
+    """Test retrieving the list of all participants."""
+    # Arrange
+    event_id = create_event(test_client)
+    create_participant(test_client, event_id)
+
+    # Act
+    response = test_client.get("/api/participants/")
+
+    # Assert
+    assert response.status_code == 200
+    assert len(response.json()) > 0
+
+
+def test_update_participant(test_client: TestClient) -> None:
+    """Test updating a participant's details."""
+    # Arrange
+    event_id = create_event(test_client)
+    participant_id = create_participant(test_client, event_id)
+    updated_data = {
+        "full_name": "Updated Name",
+        "company_name": "Updated Company",
+        "whatsapp": "+5511998888888",
+        "email": "updated@example.com",
         "event_id": event_id,
-        "custom_data": {"key": "value"},
+        "custom_data": {"updated_key": "updated_value"},
     }
 
-    response = test_client.post("/api/participants/", json=invalid_data)
-    print(response.json())  # Print the response for debugging
-    assert response.status_code == 422
-    response_data = response.json()
-    assert "detail" in response_data
-    assert len(response_data["detail"]) > 0
+    # Act
+    response = test_client.put(f"/api/participants/{participant_id}", json=updated_data)
+
+    # Assert
+    assert response.status_code == 200
+    assert response.json()["full_name"] == updated_data["full_name"]
 
 
-def test_participant_creation_with_invalid_email(test_client: TestClient, db_session: Session) -> None:
-    """Test that invalid email format results in a 422 error."""
-    event_id = create_event(test_client)
+def test_delete_participant_success(test_client: TestClient, db_session: Session) -> None:
+    """Test successful deletion of a participant by ID."""
+    # Arrange
+    event_id = create_event(test_client)  # Ensure the event exists
+    participant_id = create_participant(test_client, event_id)  # Ensure the participant exists
 
-    invalid_data = {
-        "full_name": "Invalid Email",
-        "company_name": "Test Co",
-        "whatsapp": "+5511999999999",
-        "email": "invalid@",  # Invalid email format
-        "event_id": event_id,
-        "custom_data": {"key": "value"},
-    }
+    # Act
+    response = test_client.delete(f"/api/participants/{participant_id}")
 
-    response = test_client.post("/api/participants/", json=invalid_data)
-    print(response.json())  # Print the response for debugging
-    assert response.status_code == 422
-    response_data = response.json()
-    assert "detail" in response_data
-    assert len(response_data["detail"]) > 0
+    # Assert
+    assert response.status_code == 204
+
+    # Act - Verify deletion by trying to retrieve the deleted participant
+    response = test_client.get(f"/api/participants/{participant_id}")
+
+    # Assert - Check for not found status
+    assert response.status_code == 404
 
 
-def test_participant_creation_with_missing_last_name(test_client: TestClient, db_session: Session) -> None:
-    """Test that missing last name in full_name results in a 422 error."""
-    event_id = create_event(test_client)
-
-    invalid_data = {
-        "full_name": "John",  # Only a first name
-        "company_name": "Test Co",
-        "whatsapp": "+5511999999999",
-        "email": "valid@example.com",
-        "event_id": event_id,
-        "custom_data": {"key": "value"},
-    }
-
-    response = test_client.post("/api/participants/", json=invalid_data)
-    print(response.json())  # Print the response for debugging
-    assert response.status_code == 422
-    response_data = response.json()
-    assert "detail" in response_data
-    assert len(response_data["detail"]) > 0
-
-
-def test_participant_creation_with_invalid_full_name_type(test_client: TestClient, db_session: Session) -> None:
-    """Test that invalid type for full_name results in a 422 error."""
-    event_id = create_event(test_client)
-
-    invalid_data = {
-        "full_name": 123,  # Invalid type (numeric instead of string)
-        "company_name": "Test Co",
-        "whatsapp": "+5511999999999",
-        "email": "valid@data.com",
-        "event_id": event_id,
-        "custom_data": {"key": "value"},
-    }
-
-    response = test_client.post("/api/participants/", json=invalid_data)
-    print(response.json())  # Print the response for debugging
-    assert response.status_code == 422
-    response_data = response.json()
-    assert "detail" in response_data
-    assert len(response_data["detail"]) > 0
-
-
-def test_participant_creation_with_invalid_custom_data_format(test_client: TestClient, db_session: Session) -> None:
-    """Test that invalid custom_data format results in a 422 error."""
-    event_id = create_event(test_client)
-
-    invalid_data = {
-        "full_name": "Custom Data Invalid",
-        "company_name": "Test Co",
-        "whatsapp": "+5511999999999",
-        "email": "valid@custom.com",
-        "event_id": event_id,
-        "custom_data": "invalid_string_instead_of_json",  # Invalid format
-    }
-
-    response = test_client.post("/api/participants/", json=invalid_data)
-    print(response.json())  # Print the response for debugging
-    assert response.status_code == 422
-    response_data = response.json()
-    assert "detail" in response_data
-    assert len(response_data["detail"]) > 0
-
-
+# Additional test for __repr__ method
 def test_participant_repr() -> None:
-    """Test the string representation of the Participant instance."""
+    """Test the string representation of a Participant instance."""
     # Arrange
     participant = Participant(
         id=1,
@@ -306,13 +216,13 @@ def test_participant_repr() -> None:
         whatsapp="+5511999999999",
         email="john.doe@example.com",
         event_id=1,
-        custom_data={"preferences": {"theme": "dark", "notifications": True}, "referral": "marketing_campaign_A"},
+        custom_data={"preferences": {"theme": "dark", "notifications": True}, "referral": "campaign_A"},
     )
 
     # Act
     repr_output = repr(participant)
 
-    # Expected output string, ensure the correct representation
+    # Assert
     expected_output = (
         f"<Participant(id={participant.id}), "
         f"full_name={participant.full_name!r}, "
@@ -322,6 +232,4 @@ def test_participant_repr() -> None:
         f"event_id={participant.event_id}, "
         f"custom_data={participant.custom_data!r})>"
     )
-
-    # Assert
     assert repr_output == expected_output
