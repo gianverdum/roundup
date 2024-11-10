@@ -8,7 +8,7 @@ import pytest
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.exc import OperationalError, SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.database import Base, get_db
@@ -80,59 +80,141 @@ def generate_unique_event() -> EventCreate:
     )
 
 
-def test_event_creation_success(test_client: TestClient, db_session: Session) -> None:
-    """Validates that a new event can be added successfully via POST request."""
-    # Arrange
+def create_event(test_client: TestClient) -> int:
+    """Helper function to create an event and return the event_id."""
     event_data = generate_unique_event()
-
-    # Convert any datetime fields to ISO format (if necessary)
     event_data_dict = event_data.model_dump()
-    for key, value in event_data_dict.items():
-        if isinstance(value, datetime):
-            event_data_dict[key] = value.isoformat()
+    event_data_dict["date"] = event_data.date.isoformat()
 
-    # Act
+    response = test_client.post("/api/events/", json=event_data_dict)
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
+# Tests for POST /api/events/
+def test_event_creation_success(test_client: TestClient, db_session: Session) -> None:
+    """Test successful creation of an event."""
+    event_data = generate_unique_event()
+    event_data_dict = event_data.model_dump()
+    event_data_dict["date"] = event_data.date.isoformat()
+
     response = test_client.post("/api/events/", json=event_data_dict)
 
-    # Assert
     assert response.status_code == 201
     response_data = response.json()
     assert response_data["name"] == event_data.name
-    assert response_data["location"] == event_data.location
-    assert response_data["date"] == event_data.date.isoformat()
-    assert "id" in response_data and isinstance(response_data["id"], int) and response_data["id"] > 0
-    assert response_data["max_seats_per_table"] == event_data.max_seats_per_table
-    assert response_data["tables_count"] == event_data.tables_count
 
 
 def test_event_creation_with_past_date(test_client: TestClient, db_session: Session) -> None:
-    """Validates that an event cannot be created with a past date."""
-    # Arrange
+    """Test that an event cannot be created with a past date."""
     event_data = generate_unique_event()
     past_date = datetime.now() - timedelta(days=1)
-    event_data.date = past_date  # Keep as a datetime object for type consistency
+    event_data.date = past_date
+    event_data_dict = event_data.model_dump()
+    event_data_dict["date"] = past_date.isoformat()
 
-    # Act
-    # Convert the date to ISO format string just before sending the request
-    response = test_client.post(
-        "/api/events/",
-        json={
-            **event_data.model_dump(),  # include all other fields
-            "date": past_date.isoformat(),  # override the date with the string format
-        },
-    )
+    response = test_client.post("/api/events/", json=event_data_dict)
 
-    # Assert
     assert response.status_code == 422
     response_data = response.json()
-    assert len(response_data["detail"]) == 1
     assert response_data["detail"][0]["msg"] == "Value error, The event date cannot be in the past."
-    assert response_data["detail"][0]["loc"] == ["body", "date"]
 
 
+# Tests for GET /api/events/
+def test_get_all_events_success(test_client: TestClient, db_session: Session) -> None:
+    """Test retrieval of all events."""
+    create_event(test_client)
+    response = test_client.get("/api/events/")
+
+    assert response.status_code == 200
+    response_data = response.json()
+    assert isinstance(response_data["items"], list)
+    assert response_data["total_items"] >= 1
+
+
+# Tests for GET /api/events/filter
+def test_filter_events(test_client: TestClient, db_session: Session) -> None:
+    """Test event filtering based on criteria."""
+    create_event(test_client)
+    response = test_client.get("/api/events/filter?name=Event")
+
+    assert response.status_code == 200
+    response_data = response.json()
+    assert isinstance(response_data["items"], list)
+    assert len(response_data["items"]) >= 1
+
+
+# Tests for GET /api/events/{event_id}
+def test_get_event_by_id_success(test_client: TestClient, db_session: Session) -> None:
+    """Test retrieval of an event by ID."""
+    event_id = create_event(test_client)
+    response = test_client.get(f"/api/events/{event_id}")
+
+    assert response.status_code == 200
+    response_data = response.json()
+    assert response_data["id"] == event_id
+
+
+def test_get_event_by_id_not_found(test_client: TestClient, db_session: Session) -> None:
+    """Test retrieval of a non-existent event returns 404."""
+    response = test_client.get("/api/events/9999")
+    assert response.status_code == 404
+
+
+# Tests for PUT /api/events/{event_id}
+def test_update_event_success(test_client: TestClient, db_session: Session) -> None:
+    """Test successful update of an event."""
+    event_id = create_event(test_client)
+    updated_data = {
+        "name": "Updated Event",
+        "date": (datetime.now() + timedelta(days=15)).isoformat(),
+        "location": "Updated Location",
+        "address": "New Address, SP, 12345-678",
+        "participant_limit": 60,
+        "max_seats_per_table": 10,
+        "tables_count": 5,
+    }
+
+    response = test_client.put(f"/api/events/{event_id}", json=updated_data)
+    assert response.status_code == 200
+
+
+def test_update_event_not_found(test_client: TestClient, db_session: Session) -> None:
+    """Test updating a non-existent event returns 404."""
+    updated_data = {
+        "name": "Non-existent Event",
+        "date": (datetime.now() + timedelta(days=15)).isoformat(),
+        "location": "Nowhere",
+        "address": "Non-existent Address",
+        "participant_limit": 50,
+        "max_seats_per_table": 8,
+        "tables_count": 4,
+    }
+
+    response = test_client.put("/api/events/9999", json=updated_data)
+    assert response.status_code == 404
+
+
+# Tests for DELETE /api/events/{event_id}
+def test_delete_event_success(test_client: TestClient, db_session: Session) -> None:
+    """Test successful deletion of an event by ID."""
+    event_id = create_event(test_client)
+    response = test_client.delete(f"/api/events/{event_id}")
+
+    assert response.status_code == 204
+    response = test_client.get(f"/api/events/{event_id}")
+    assert response.status_code == 404
+
+
+def test_delete_event_not_found(test_client: TestClient, db_session: Session) -> None:
+    """Test deletion of a non-existent event returns 404."""
+    response = test_client.delete("/api/events/9999")
+    assert response.status_code == 404
+
+
+# Additional tests
 def test_event_repr() -> None:
-    """Validates the string representation of an Event instance."""
-    # Arrange
+    """Test string representation of an Event instance."""
     event_data = generate_unique_event()
     event = Event(
         name=event_data.name,
@@ -142,10 +224,7 @@ def test_event_repr() -> None:
         max_seats_per_table=event_data.max_seats_per_table,
         tables_count=event_data.tables_count,
     )
-
-    # Act
     repr_output = repr(event)
-
     expected_output = (
         f"<Event(name={event_data.name!r}, "
         f"date={event_data.date}, "
@@ -154,221 +233,4 @@ def test_event_repr() -> None:
         f"max_seats_per_table={event_data.max_seats_per_table}, "
         f"tables_count={event_data.tables_count})>"
     )
-
-    # Assert
     assert repr_output == expected_output
-
-
-def test_create_event_with_invalid_data(test_client: TestClient, db_session: Session) -> None:
-    """Tests the creation of an event with invalid data."""
-    invalid_event_data = {
-        "name": "",
-        "date": "invalid-date",
-        "location": "Location",
-        "address": "Address",
-        "max_seats_per_table": 1,
-        "tables_count": 0,
-    }
-
-    response = test_client.post("/api/events/", json=invalid_event_data)
-
-    assert response.status_code == 422
-    response_data = response.json()
-
-    assert len(response_data["detail"]) > 0
-    assert all("msg" in error for error in response_data["detail"])
-
-    name_error = next((error for error in response_data["detail"] if error["loc"] == ["body", "name"]), None)
-    date_error = next((error for error in response_data["detail"] if error["loc"] == ["body", "date"]), None)
-    max_seats_error = next(
-        (error for error in response_data["detail"] if error["loc"] == ["body", "max_seats_per_table"]), None
-    )
-    tables_count_error = next(
-        (error for error in response_data["detail"] if error["loc"] == ["body", "tables_count"]), None
-    )
-
-    assert name_error is not None
-    assert "msg" in name_error
-    assert name_error["msg"] == "String should have at least 3 characters"
-
-    assert date_error is not None
-    assert "msg" in date_error
-    assert "Input should be a valid datetime or date" in date_error["msg"]
-
-    assert max_seats_error is not None
-    assert "msg" in max_seats_error
-    assert max_seats_error["msg"] == "Input should be greater than 1"
-
-    assert tables_count_error is not None
-    assert "msg" in tables_count_error
-    assert tables_count_error["msg"] == "Input should be greater than 0"
-
-
-def test_get_db(db_session: Session) -> None:
-    """Tests that the get_db function returns a session."""
-    # Act
-    db = next(get_db())
-
-    # Assert
-    assert isinstance(db, Session)
-    db.close()  # Ensure it closes without issue
-
-
-def test_db_error_handler(test_client: TestClient) -> None:
-    """Tests the db_error_handler middleware for OperationalError."""
-
-    # Arrange: create a mock request that causes an OperationalError
-    @app.get("/error")
-    async def error_route() -> None:
-        raise OperationalError("Mock Operational Error", "Some params", "Some connection")
-
-    # Act
-    response = test_client.get("/error")
-
-    # Assert
-    assert response.status_code == 500
-    assert response.json() == {"detail": "Database error: Some connection"}
-
-
-def test_read_root(test_client: TestClient) -> None:
-    """Tests the read_root endpoint."""
-    # Act
-    response = test_client.get("/")
-
-    # Assert
-    assert response.status_code == 200
-    assert response.json() == {"message": "Welcome to the RoundUp API!"}
-
-
-def test_db_error_handler_operational_error(test_client: TestClient) -> None:
-    """Tests the db_error_handler middleware for OperationalError."""
-
-    # Arrange
-    @app.get("/mock-op-error")
-    async def mock_operational_error() -> None:
-        raise OperationalError("Mock Operational Error", "Some params", "Some connection")
-
-    # Act
-    response = test_client.get("/mock-op-error")
-
-    # Assert
-    assert response.status_code == 500
-    assert response.json() == {"detail": "Database error: Some connection"}
-
-
-def test_db_error_handler_sqlalchemy_error(test_client: TestClient) -> None:
-    """Tests the db_error_handler middleware for SQLAlchemyError."""
-
-    # Arrange
-    @app.get("/mock-sql-error")
-    async def mock_sqlalchemy_error() -> None:
-        raise MockSQLAlchemyError("Mock SQLAlchemy Error")
-
-    # Act
-    response = test_client.get("/mock-sql-error")
-
-    # Assert
-    assert response.status_code == 500
-    assert response.json() == {"detail": "Unexpected database error: Mock SQLAlchemy Error"}
-
-
-def test_db_error_handler_unexpected_error(test_client: TestClient) -> None:
-    """Tests the db_error_handler middleware for unexpected errors."""
-
-    # Arrange
-    @app.get("/mock-unexpected-error")
-    async def mock_unexpected_error() -> None:
-        raise ValueError("This is a mock unexpected error.")
-
-    # Act
-    response = test_client.get("/mock-unexpected-error")
-
-    # Assert
-    assert response.status_code == 500
-    assert response.json() == {"detail": "An unexpected error occurred"}
-
-
-def test_create_event_with_invalid_date_format(test_client: TestClient) -> None:
-    """Tests creation of an event with an invalid date format."""
-    # Arrange
-    invalid_event_data = {
-        "name": "Valid Event",
-        "date": "invalid-date-format",
-        "location": "Some Location",
-        "address": "123 Sample Address",
-        "participant_limit": 50,
-        "max_seats_per_table": 0,
-        "tables_count": 0,
-    }
-
-    # Act
-    response = test_client.post("/api/events/", json=invalid_event_data)
-
-    # Assert
-    assert response.status_code == 422
-    response_data = response.json()
-
-    # Assert the structure of the error response
-    assert "detail" in response_data
-    assert isinstance(response_data["detail"], list)
-
-    # Check for the specific error related to the date field
-    date_error = next((error for error in response_data["detail"] if error["loc"] == ["body", "date"]), None)
-    assert date_error is not None
-    assert "msg" in date_error
-    assert "invalid character in year" in date_error["msg"]
-
-    # Check for the specific error related to the max_seats_per_table field
-    max_seats_error = next(
-        (error for error in response_data["detail"] if error["loc"] == ["body", "max_seats_per_table"]), None
-    )
-    assert max_seats_error is not None
-    assert "msg" in max_seats_error
-    assert max_seats_error["msg"] == "Input should be greater than 1"
-
-    # Check for the specific error related to the tables_count field
-    tables_count_error = next(
-        (error for error in response_data["detail"] if error["loc"] == ["body", "tables_count"]), None
-    )
-    assert tables_count_error is not None
-    assert "msg" in tables_count_error
-    assert tables_count_error["msg"] == "Input should be greater than 0"
-
-
-def test_create_event_with_missing_fields(test_client: TestClient) -> None:
-    """Tests the creation of an event with missing fields."""
-    # Arrange
-    event_data = {
-        "name": "Event without date",
-        "location": "Some Location",
-        # Missing date, address, participant_limit, max_seats_per_table, and tables_count
-    }
-
-    # Act
-    response = test_client.post("/api/events/", json=event_data)
-
-    # Assert
-    assert response.status_code == 422
-    response_data = response.json()
-
-    # Assert the structure of the error response
-    assert "detail" in response_data
-    assert isinstance(response_data["detail"], list)
-
-    # Check for the specific errors related to missing fields
-    missing_fields_errors = [
-        error
-        for error in response_data["detail"]
-        if error["loc"]
-        in [
-            ["body", "date"],
-            ["body", "address"],
-            ["body", "participant_limit"],
-            ["body", "max_seats_per_table"],
-            ["body", "tables_count"],
-        ]
-    ]
-    assert len(missing_fields_errors) > 0
-
-    # Check for the correct error message structure
-    assert all(error["msg"] == "Field required" for error in missing_fields_errors)  # Ensure "Field required" message

@@ -112,8 +112,8 @@ async def create_participant_route(participant: ParticipantCreate, db: Session =
 )
 async def read_participants_route(
     db: Session = Depends(get_db),
-    limit: int = Query(10, ge=1, description="Limit the number of results", example=5),
-    offset: int = Query(0, ge=0, description="The starting index of results", example=0),
+    limit: int = Query(10, ge=1, description="Limit the number of results", examples=5),
+    offset: int = Query(0, ge=0, description="The starting index of results", examples=0),
 ) -> ParticipantPaginatedResponse:
     """
     Retrieves a paginated list of participants.
@@ -172,13 +172,21 @@ async def read_participants_route(
 )
 async def filter_participants_route(
     db: Session = Depends(get_db),
-    full_name: Optional[str] = Query(None, description="Full name of the participant"),
-    company_name: Optional[str] = Query(None, description="Company name of the participant"),
-    whatsapp: Optional[str] = Query(None, description="WhatsApp number of the participant"),
-    email: Optional[str] = Query(None, description="Email of the participant"),
-    event_id: Optional[int] = Query(None, description="Event ID to filter participants by"),
-    limit: int = Query(10, ge=1, description="Limit the number of results", example=5),
-    offset: int = Query(0, ge=0, description="The starting index of results", example=0),
+    full_name: Optional[str] = Query(
+        None, description="Full name of the participant", examples={"example": "Jane Doe"}
+    ),
+    company_name: Optional[str] = Query(
+        None, description="Company name of the participant", examples={"example": "Tech Solutions Inc."}
+    ),
+    whatsapp: Optional[str] = Query(
+        None, description="WhatsApp number of the participant", examples={"example": "+5511998765432"}
+    ),
+    email: Optional[str] = Query(
+        None, description="Email of the participant", examples={"example": "jane.doe@example.com"}
+    ),
+    event_id: Optional[int] = Query(None, description="Event ID to filter participants by", examples={"example": 1}),
+    limit: int = Query(10, ge=1, description="Limit the number of results", examples=5),
+    offset: int = Query(0, ge=0, description="The starting index of results", examples=0),
 ) -> ParticipantPaginatedResponse:
     """
     Retrieve a list of participants based on the provided filters, with pagination.
@@ -262,7 +270,7 @@ async def read_participant_route(participant_id: int, db: Session = Depends(get_
     """
     participant = await get_participant_by_id(participant_id, db)
     if not participant:
-        raise HTTPException(status_code=status.HTTP_404, detail="Participant not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Participant not found")
     return participant
 
 

@@ -92,3 +92,21 @@ class TablePaginatedResponse(BaseModel):
             }
         },
     )
+
+
+class TableUpdate(BaseModel):
+    """
+    Schema for updating table details.
+
+    Attributes:
+        id (int): Unique identifier for the table.
+        event_id (int): ID of the event to which the table is linked.
+        table_number (int): Number identifying the table within the event.
+        seats (int): Number of seats available at the table.
+    """
+
+    event_id: int
+    table_number: int = Field(..., ge=1)
+    seats: int = Field(..., ge=2)
+
+    model_config = ConfigDict(from_attributes=True)
