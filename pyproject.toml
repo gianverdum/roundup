@@ -51,4 +51,4 @@ default_section = "THIRDPARTY"  # Grouping for imports
 skip = []  # Add any directories/files you want to skip
 
 [dependency-groups]
-dev = ["pytest>=8.3.3", "pre-commit>=4.0.1", "mypy>=1.13.0", "isort>=5.10.0", "cookiecutter>=2.6.0", "pytest-cov>=6.0.0"]
+dev = ["pytest>=8.3.3", "pre-commit>=4.0.1", "mypy>=1.13.0", "isort>=5.10.0", "cookiecutter>=2.6.0", "pytest-cov>=6.0.0", "pgcli>=4.1.0", "psycopg2-binary>=2.9.10", "pytest-mock>=3.14.0"]

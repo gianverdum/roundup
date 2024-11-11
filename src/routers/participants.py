@@ -11,6 +11,7 @@ from src.schemas.participant import (
     ParticipantRead,
 )
 from src.services.participant_service import (
+    check_in_participant,
     create_participant,
     delete_participant,
     filter_participants,
@@ -39,6 +40,7 @@ router = APIRouter()
                         "email": "email@gmail.com",
                         "custom_data": {"preferences": {"theme": "dark", "notifications": True}},
                         "event_id": 1,
+                        "is_present": False,
                     }
                 }
             },
@@ -67,6 +69,50 @@ async def create_participant_route(participant: ParticipantCreate, db: Session =
     """
 
     return await create_participant(participant, db)
+
+
+@router.post(
+    "/api/participants/{participant_id}/check-in",
+    status_code=status.HTTP_200_OK,
+    response_model=ParticipantRead,
+    summary="Check-in participant",
+    responses={
+        200: {
+            "description": "Participant check in successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 1,
+                        "full_name": "John Doe",
+                        "company_name": "My business",
+                        "whatsapp": "11911112222",
+                        "email": "email@gmail.com",
+                        "custom_data": {"preferences": {"theme": "dark", "notifications": True}},
+                        "envent_id": 1,
+                        "is_present": True,
+                    }
+                }
+            },
+        },
+        404: {"description": "Participant not found"},
+        500: {"description": "An unexpected error occurred"},
+    },
+)
+async def check_in_participant_route(participant_id: int, db: Session = Depends(get_db)) -> ParticipantRead:
+    """
+    Register a participant's check-in for the event.
+
+    Parameters:
+        - participant_id (int): The ID of the participant to check in.
+        - db (Session): Database session dependency.
+
+    Returns:
+        ParticipantRead: The updated participant details after check-in.
+
+    Raises:
+        HTTPException: If the participant is not found or if an unexpected error occurs.
+    """
+    return await check_in_participant(participant_id, db)
 
 
 @router.get(
@@ -248,6 +294,7 @@ async def filter_participants_route(
                         "email": "email@gmail.com",
                         "custom_data": {"preferences": {"theme": "dark", "notifications": True}},
                         "event_id": 1,
+                        "is_present": False,
                     }
                 }
             },
@@ -291,6 +338,7 @@ async def read_participant_route(participant_id: int, db: Session = Depends(get_
                         "email": "email@gmail.com",
                         "custom_data": {"preferences": {"theme": "dark", "notifications": True}},
                         "event_id": 1,
+                        "is_present": False,
                     }
                 }
             },

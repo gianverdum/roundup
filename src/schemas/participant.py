@@ -83,6 +83,7 @@ class ParticipantRead(ParticipantCreate):
     """
 
     id: int
+    is_present: bool
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -119,6 +120,7 @@ class ParticipantPaginatedResponse(BaseModel):
                         "whatsapp": "+5511998765432",
                         "email": "johndoe@example.com",
                         "custom_data": {"additional_info": "Special requirements"},
+                        "is_present": False,
                     },
                     {
                         "id": 2,
@@ -127,6 +129,7 @@ class ParticipantPaginatedResponse(BaseModel):
                         "whatsapp": "+5511987654321",
                         "email": "janesmith@example.com",
                         "custom_data": {"additional_info": "Vegetarian meal"},
+                        "is_present": True,
                     },
                 ],
                 "total_items": 50,

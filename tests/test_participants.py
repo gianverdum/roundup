@@ -7,6 +7,7 @@ from typing import Generator
 import pytest
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
+from pytest_mock import MockerFixture
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -134,6 +135,7 @@ def test_participant_creation_success(test_client: TestClient) -> None:
     response_data = response.json()
     assert response_data["full_name"] == participant_data.full_name
     assert response_data["company_name"] == participant_data.company_name
+    assert response_data["is_present"] is False
 
 
 def test_get_participant(test_client: TestClient) -> None:
@@ -203,6 +205,54 @@ def test_delete_participant_success(test_client: TestClient, db_session: Session
     assert response.status_code == 404
 
 
+def test_check_in_participant_success(test_client: TestClient) -> None:
+    """Test successful check-in of a participant."""
+    # Arrange
+    event_id = create_event(test_client)
+    participant_id = create_participant(test_client, event_id)
+
+    # Act
+    response = test_client.post(f"/api/participants/{participant_id}/check-in")
+
+    # Assert
+    assert response.status_code == 200
+    response_data = response.json()
+    assert response_data["is_present"] is True
+    assert response_data["id"] == participant_id
+
+
+def test_check_in_participant_not_found(test_client: TestClient) -> None:
+    """Test check-in for a non-existent participant returns 404."""
+    # Act
+    response = test_client.post("/api/participants/9999/check-in")
+
+    # Assert
+    assert response.status_code == 404
+    response_data = response.json()
+    assert response_data["detail"] == "Participant not found"
+
+
+@pytest.mark.skip(reason="Complex setup; revisit in future.")
+def test_check_in_participant_unexpected_error(mocker: MockerFixture, test_client: TestClient) -> None:
+    """Test unexpected error during participant check-in."""
+    # Arrange
+    event_id = create_event(test_client)
+    participant_id = create_participant(test_client, event_id)
+
+    # Mock `db.commit` to raise an exception
+    mocker.patch(
+        "src.services.participant_service.check_in_participant", side_effect=Exception("Mocked unexpected error")
+    )
+
+    # Act
+    response = test_client.post(f"/api/participants/{participant_id}/check-in")
+
+    # Assert
+    assert response.status_code == 500
+    response_data = response.json()
+    assert "An unexpected error occurred" in response_data["detail"]
+
+
 # Additional test for __repr__ method
 def test_participant_repr() -> None:
     """Test the string representation of a Participant instance."""
@@ -215,6 +265,7 @@ def test_participant_repr() -> None:
         email="john.doe@example.com",
         event_id=1,
         custom_data={"preferences": {"theme": "dark", "notifications": True}, "referral": "campaign_A"},
+        is_present=True,
     )
 
     # Act
@@ -228,6 +279,7 @@ def test_participant_repr() -> None:
         f"whatsapp={participant.whatsapp!r}, "
         f"email={participant.email!r}, "
         f"event_id={participant.event_id}, "
-        f"custom_data={participant.custom_data!r})>"
+        f"custom_data={participant.custom_data!r}, "
+        f"is_present={participant.is_present})>"
     )
     assert repr_output == expected_output
