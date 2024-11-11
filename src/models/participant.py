@@ -1,5 +1,5 @@
 # src/models/participant.py
-from sqlalchemy import JSON, Column, ForeignKey, Index, Integer, String
+from sqlalchemy import JSON, Boolean, Column, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
 
 from src.database import Base
@@ -27,6 +27,7 @@ class Participant(Base):
     email = Column(String(255), nullable=False, index=True)
     custom_data = Column(JSON, nullable=True)
     event_id = Column(Integer, ForeignKey("events.id"), nullable=False, index=True)
+    is_present = Column(Boolean, default=False)
 
     event = relationship("Event", back_populates="participants")
 
@@ -38,7 +39,8 @@ class Participant(Base):
             f"whatsapp={self.whatsapp!r}, "
             f"email={self.email!r}, "
             f"event_id={self.event_id}, "
-            f"custom_data={self.custom_data!r})>"
+            f"custom_data={self.custom_data!r}, "
+            f"is_present={self.is_present})>"
         )
 
     __table_args__ = (

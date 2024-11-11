@@ -208,3 +208,36 @@ async def delete_participant(participant_id: int, db: Session) -> bool:
     db.delete(participant)
     db.commit()
     return True
+
+
+async def check_in_participant(participant_id: int, db: Session) -> ParticipantRead:
+    """
+    Marks a participant as present by setting `is_present` to True.
+
+    Parameters:
+        participant_id (int): ID of the participant to check in.
+        db (Session): Database session dependency.
+
+    Returns:
+        ParticipantRead: The updated participant details after check-in.
+
+    Raises:
+        HTTPException: If the participant is not found.
+    """
+    participant = db.query(Participant).filter(Participant.id == participant_id).first()
+    if participant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Participant not found")
+
+    participant.is_present = True
+    try:
+        db.commit()
+        db.refresh(participant)
+
+        return ParticipantRead.model_validate(participant)
+
+    except Exception as e:
+        db.rollback()
+        print("Unexpected Error:", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An unexpected error occurred: {str(e)}"
+        )
