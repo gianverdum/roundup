@@ -128,6 +128,7 @@ def test_table_creation_success(test_client: TestClient) -> None:
 
 def test_table_creation_with_missing_fields(test_client: TestClient) -> None:
     """Test that missing fields result in a 422 error."""
+    # Arrange
     event_data = create_event_with_isoformat(test_client)
     event_id = event_data["id"]
 
@@ -141,13 +142,17 @@ def test_table_creation_with_missing_fields(test_client: TestClient) -> None:
 # Tests for GET /api/tables/
 def test_get_all_tables_success(test_client: TestClient) -> None:
     """Test retrieval of all tables."""
+    # Arrange
     event_data = create_event_with_isoformat(test_client)
     event_id = event_data["id"]
     max_seats = event_data["max_seats_per_table"]
 
     create_table(test_client, event_id, seats=max_seats)
 
+    # Act
     response = test_client.get("/api/tables/")
+
+    # Assert
     assert response.status_code == 200
     assert isinstance(response.json()["items"], list)
 
@@ -175,20 +180,24 @@ def test_filter_tables(test_client: TestClient) -> None:
 # Tests for GET /api/tables/{table_id}
 def test_get_table_by_id_success(test_client: TestClient) -> None:
     """Test retrieval of a table by its ID."""
+    # Arrange
     event_data = create_event_with_isoformat(test_client)
     event_id = event_data["id"]
     max_seats = event_data["max_seats_per_table"]
 
     table_id = create_table(test_client, event_id, seats=max_seats)
+
+    # Act
     response = test_client.get(f"/api/tables/{table_id}")
 
+    # Assert
     assert response.status_code == 200
     assert response.json()["id"] == table_id
 
 
 def test_get_table_by_id_not_found(test_client: TestClient) -> None:
     """Test retrieval of a non-existent table returns 404."""
-    # Act
+    # Arrange/Act
     response = test_client.get("/api/tables/9999")
 
     # Assert
@@ -198,7 +207,7 @@ def test_get_table_by_id_not_found(test_client: TestClient) -> None:
 # Tests for PUT /api/tables/{table_id}
 def test_update_table_success(test_client: TestClient) -> None:
     """Test successful update of a table."""
-    # Criação do evento e da mesa
+    # Arrange
     event_data = create_event_with_isoformat(test_client)
     event_id = event_data["id"]
     max_seats = event_data["max_seats_per_table"]
@@ -206,8 +215,10 @@ def test_update_table_success(test_client: TestClient) -> None:
     table_id = create_table(test_client, event_id, seats=max_seats)
     updated_data = {"event_id": event_id, "table_number": 2, "seats": max_seats}
 
+    # Act
     response = test_client.put(f"/api/tables/{table_id}", json=updated_data)
 
+    # Assert
     assert response.status_code == 200, f"Unexpected error: {response.json()}"
     response_data = response.json()
     assert response_data["table_number"] == updated_data["table_number"]
@@ -215,14 +226,17 @@ def test_update_table_success(test_client: TestClient) -> None:
 
 def test_update_table_not_found(test_client: TestClient) -> None:
     """Test updating a non-existent table returns 404."""
+    # Arrange
     event_data = create_event_with_isoformat(test_client)
     event_id = event_data["id"]
     max_seats = event_data["max_seats_per_table"]
 
     updated_data = {"event_id": event_id, "table_number": 2, "seats": max_seats}
 
+    # Act
     response = test_client.put("/api/tables/9999", json=updated_data)
 
+    # Assert
     assert response.status_code == 404, f"Unexpected error: {response.json()}"
 
 
@@ -247,7 +261,7 @@ def test_delete_table_success(test_client: TestClient) -> None:
 
 def test_delete_table_not_found(test_client: TestClient) -> None:
     """Test deletion of a non-existent table returns 404."""
-    # Act
+    # Arrange/Act
     response = test_client.delete("/api/tables/9999")
 
     # Assert
@@ -257,9 +271,12 @@ def test_delete_table_not_found(test_client: TestClient) -> None:
 # Additional test
 def test_table_repr() -> None:
     """Validate the string representation of a Table instance."""
+    # Arrange/Act
     table = Table(id=1, event_id=2, table_number=1, seats=8)
 
     expected_output = (
         f"<Table id={table.id} event_id={table.event_id} table_number={table.table_number} seats={table.seats}>"
     )
+
+    # Assert
     assert repr(table) == expected_output

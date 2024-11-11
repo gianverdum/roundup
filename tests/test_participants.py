@@ -198,10 +198,8 @@ def test_delete_participant_success(test_client: TestClient, db_session: Session
     # Assert
     assert response.status_code == 204
 
-    # Act - Verify deletion by trying to retrieve the deleted participant
     response = test_client.get(f"/api/participants/{participant_id}")
 
-    # Assert - Check for not found status
     assert response.status_code == 404
 
 
