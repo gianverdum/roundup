@@ -16,6 +16,11 @@ class TableAllocationSummary(BaseModel):
     table_id: int
     participant_ids: List[int]
 
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={"example": {"table_id": 1, "participant_ids": [101, 102, 103]}},
+    )
+
 
 class RoundSummary(BaseModel):
     """
@@ -29,4 +34,15 @@ class RoundSummary(BaseModel):
     round_number: int
     allocations: List[TableAllocationSummary]
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "round_number": 1,
+                "allocations": [
+                    {"table_id": 1, "participant_ids": [101, 102, 103]},
+                    {"table_id": 2, "participant_ids": [104, 105, 106]},
+                ],
+            }
+        },
+    )
