@@ -5,11 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from src.database import get_db
-from src.schemas.participant import (
-    ParticipantCreate,
-    ParticipantPaginatedResponse,
-    ParticipantRead,
-)
+from src.schemas.participant import ParticipantCreate, ParticipantPaginatedResponse, ParticipantRead
 from src.services.participant_service import (
     check_in_participant,
     create_participant,
