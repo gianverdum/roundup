@@ -34,6 +34,7 @@ class Event(Base):
 
     tables = relationship("Table", back_populates="event")
     participants = relationship("Participant", back_populates="event", cascade="all, delete-orphan")
+    rounds = relationship("Round", back_populates="event", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return (
