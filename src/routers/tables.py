@@ -5,12 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from src.database import get_db
-from src.schemas.table import (
-    TableCreate,
-    TablePaginatedResponse,
-    TableResponse,
-    TableUpdate,
-)
+from src.schemas.table import TableCreate, TablePaginatedResponse, TableResponse, TableUpdate
 from src.services.table_service import (
     create_tables,
     delete_table,
