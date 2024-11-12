@@ -17,7 +17,7 @@ router = APIRouter()
 
 
 @router.get(
-    "/events/{event_id}/allocation/preview",
+    "/api/events/{event_id}/allocation/preview",
     response_model=int,
     summary="Preview Allocation Rounds",
     responses={
@@ -59,7 +59,7 @@ def preview_allocation(event_id: int, only_checked_in: bool = False, db: Session
 
 
 @router.post(
-    "/events/{event_id}/allocation/confirm",
+    "/api/events/{event_id}/allocation/confirm",
     response_model=List[RoundSummary],
     status_code=status.HTTP_201_CREATED,
     summary="Confirm Allocation",

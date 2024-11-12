@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
+from routers import allocation
 from src.database import Base, engine
 from src.routers import events, participants, tables
 
@@ -84,3 +85,4 @@ def read_root() -> dict[str, str]:
 app.include_router(events.router, tags=["Events"])
 app.include_router(tables.router, tags=["Tables"])
 app.include_router(participants.router, tags=["Participants"])
+app.include_router(allocation.router, tags=["Rounds allocation"])
