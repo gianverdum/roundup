@@ -1,63 +1,70 @@
 # src/services/allocation_service.py
-import random
-from math import ceil
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Union
 
 from src.models.table import Table
 
 
-def calculate_rounds_needed(total_participants: int, seats_per_table: int, table_count: int) -> int:
-    """Calculate the minimum rounds needed for participants to interact uniquely."""
-    seats_per_round = seats_per_table * table_count
-    if total_participants <= seats_per_round:
-        return 1
-    groups_needed = total_participants // seats_per_table
-    return ceil(groups_needed / table_count)
-
-
 def allocate_participants(
-    participants: List[int], tables: List[Table], max_rounds: Optional[int] = None
-) -> Dict[int, Dict[int, List[int]]]:
+    participants: List[int], tables: List[Table], simulate_only: bool = False
+) -> Union[Dict[int, Dict[int, List[int]]], int]:
     """
-    Allocate participants across rounds, ensuring unique pairings.
-    """
-    table_count = len(tables)
-    required_rounds = calculate_rounds_needed(len(participants), tables[0].seats, table_count)
-    max_rounds = max_rounds or required_rounds
+    Allocate participants across rounds using a controlled transposition approach,
+    ensuring unique groupings based on the Excel approach.
 
+    Parameters:
+        - participants (List[int]): List of participant IDs.
+        - tables (List[Table]): List of table configurations.
+        - simulate_only (bool): If True, only returns the number of rounds needed.
+
+    Returns:
+        Union[Dict[int, Dict[int, List[int]]], int]: A dictionary of rounds with table allocations or
+        the count of rounds if in simulate_only mode.
+    """
     rounds = {}
-    round_number = 1
-    possible_pairs: Set[Tuple[int, int]] = {
-        (min(a, b), max(a, b)) for i, a in enumerate(participants) for b in participants[i + 1 :]
+    num_tables = len(tables)
+    table_capacity = tables[0].seats  # Assume all tables have the same capacity
+
+    # Step 1: Create the initial allocation (first round)
+    initial_allocation = {
+        tables[i].id: participants[i * table_capacity : (i + 1) * table_capacity] for i in range(num_tables)
     }
-    encountered_pairs: Set[Tuple[int, int]] = set()
+    rounds[1] = initial_allocation
 
-    while encountered_pairs != possible_pairs and round_number <= max_rounds:
-        round_allocation: Dict[int, List[int]] = {table.id: [] for table in tables}
-        shuffled_participants = participants[:]
-        random.shuffle(shuffled_participants)
+    # Step 2: Generate subsequent rounds by rotating participant positions
+    round_number = 2
+    current_allocation = initial_allocation
 
-        for table in tables:
-            assigned: List[int] = []
-            while len(assigned) < table.seats and shuffled_participants:
-                candidate = shuffled_participants.pop(0)
-                if all((min(candidate, other), max(candidate, other)) not in encountered_pairs for other in assigned):
-                    assigned.append(candidate)
+    while True:
+        new_allocation: Dict[int, List[int]] = {table.id: [] for table in tables}
+        column_index = 0  # To track current column position for transposition
 
-            round_allocation[table.id] = assigned
-            for i, p1 in enumerate(assigned):
-                for p2 in assigned[i + 1 :]:
-                    encountered_pairs.add((min(p1, p2), max(p1, p2)))
+        # Transpose the previous round's matrix into the new round's matrix
+        for row in current_allocation.values():
+            remaining_positions = table_capacity - len(new_allocation[tables[column_index].id])
 
-        rounds[round_number] = round_allocation
+            # Fill the current column with as many participants as fit
+            for i in range(len(row)):
+                if remaining_positions == 0:
+                    # Move to the next column if the current one is full
+                    column_index += 1
+                    remaining_positions = table_capacity
+
+                new_allocation[tables[column_index].id].append(row[i])
+                remaining_positions -= 1
+
+                if column_index >= num_tables:
+                    break  # Ensure we don't exceed the table limit in rare edge cases
+
+        # Check if the allocation is repeating the initial allocation, which means we're done
+        if new_allocation == initial_allocation:
+            # Return only the count if in simulation mode
+            if simulate_only:
+                return round_number - 1
+            break
+
+        rounds[round_number] = new_allocation
+        current_allocation = new_allocation
         round_number += 1
 
-    if encountered_pairs != possible_pairs:
-        print("Warning: Unable to complete unique pairings within the maximum rounds allowed.")
-
-    for rnd, allocation in rounds.items():
-        print(f"\nRound {rnd}:")
-        for table_id, seated_participants in allocation.items():
-            print(f"  Table {table_id}: Participants {seated_participants}")
-
+    # Return the full allocation plan across all rounds if not in simulation mode
     return rounds

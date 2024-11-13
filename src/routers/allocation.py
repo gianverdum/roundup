@@ -11,7 +11,7 @@ from src.models.round import Round
 from src.models.table import Table
 from src.models.table_allocation import TableAllocation
 from src.schemas.round_summary import RoundSummary, TableAllocationSummary
-from src.services.allocation_service import allocate_participants, calculate_rounds_needed
+from src.services.allocation_service import allocate_participants
 
 router = APIRouter()
 
@@ -45,7 +45,6 @@ def preview_allocation(event_id: int, only_checked_in: bool = False, db: Session
     if not event:
         raise HTTPException(status_code=404, detail="Event not found.")
 
-    # Filter participants based on check-in status if only_checked_in is True
     participants_query = db.query(Participant).filter(Participant.event_id == event_id)
     if only_checked_in:
         participants_query = participants_query.filter(Participant.is_present.is_(True))
@@ -54,8 +53,16 @@ def preview_allocation(event_id: int, only_checked_in: bool = False, db: Session
     if not participants:
         raise HTTPException(status_code=400, detail="No participants available for allocation.")
 
-    rounds_needed = calculate_rounds_needed(len(participants), event.max_seats_per_table, event.tables_count)
-    return rounds_needed
+    rounds_needed = allocate_participants(
+        participants=[p.id for p in participants],
+        tables=db.query(Table).filter(Table.event_id == event_id).all(),
+        simulate_only=True,
+    )
+
+    if isinstance(rounds_needed, int):
+        return rounds_needed
+    else:
+        raise HTTPException(status_code=500, detail="Unexpected error calculating allocation preview.")
 
 
 @router.post(
@@ -102,26 +109,31 @@ def confirm_allocation(event_id: int, db: Session = Depends(get_db)) -> List[Rou
     Returns:
         List[RoundSummary]: List of round summaries showing table allocations per round.
     """
+    # Check if event exists
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found.")
 
-    # Retrieve participants who have checked in
+    # Retrieve checked-in participants
     participants = (
         db.query(Participant).filter(Participant.event_id == event_id, Participant.is_present.is_(True)).all()
     )
     if not participants:
         raise HTTPException(status_code=400, detail="No participants available for allocation.")
 
+    # Retrieve event tables
     tables = db.query(Table).filter(Table.event_id == event_id).all()
-    rounds_needed = calculate_rounds_needed(len(participants), event.max_seats_per_table, event.tables_count)
 
-    # Perform allocation
-    allocations = allocate_participants([p.id for p in participants], tables, max_rounds=rounds_needed)
+    # Perform allocation directly
+    allocations = allocate_participants([p.id for p in participants], tables, simulate_only=False)
 
+    # Validate if allocations are complete
+    if isinstance(allocations, int):
+        raise HTTPException(status_code=500, detail="Unexpected round count returned instead of allocations.")
+
+    # Save rounds and allocations to the database
     round_summaries = []
     for round_number, allocation in allocations.items():
-        # Create and persist each round in the database
         round_entry = Round(event_id=event_id, round_number=round_number)
         db.add(round_entry)
         db.flush()  # Flush to assign an ID to round_entry for relationships
@@ -135,7 +147,7 @@ def confirm_allocation(event_id: int, db: Session = Depends(get_db)) -> List[Rou
                 db.add(table_allocation)
                 table_allocations.append(table_allocation)
 
-        # Build RoundSummary for the response
+        # Create summary for response
         round_summary = RoundSummary(
             round_number=round_number,
             allocations=[
