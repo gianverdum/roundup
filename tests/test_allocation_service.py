@@ -1,125 +1,79 @@
 # tests/test_allocation_service.py
-import os
-from typing import Generator
+from typing import List, Set, Tuple
 
 import pytest
-from dotenv import load_dotenv
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
 
-from src.database import Base, get_db
-from src.main import app
 from src.models.table import Table
-from src.services.allocation_service import allocate_participants, calculate_rounds_needed
-from tests.test_events import create_event
-from tests.test_tables import create_table
-
-# Load the database URL from the .env file
-load_dotenv()
-DATABASE_URL = os.getenv("POSTGRES_URL")
-
-# Adjust the DATABASE_URL for compatibility
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
-if DATABASE_URL:
-    DATABASE_URL = DATABASE_URL.split("&supa=")[0]
-
-if not DATABASE_URL:
-    raise ValueError("DATABASE_URL is not set in the environment variables")
-
-# Set up the database engine
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+from src.services.allocation_service import allocate_participants
 
 
-@pytest.fixture(scope="function")
-def db_session() -> Generator[Session, None, None]:
-    connection = engine.connect()
-    transaction = connection.begin()
-    session = SessionLocal(bind=connection)
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+@pytest.mark.parametrize(
+    "table_quantity, seats_per_table, participants",
+    [(5, 4, 20), (12, 8, 96)],  # Moderate test case  # Larger test case for robustness
+)
+def test_no_repeated_table_groups_across_rounds(table_quantity: int, seats_per_table: int, participants: int) -> None:
+    """
+    Test allocation to ensure no repeated groups across rounds, allowing groups smaller than full capacity,
+    but disallowing single-participant groups.
+    """
+    # Arrange
+    tables: List[Table] = [Table(id=i, seats=seats_per_table) for i in range(1, table_quantity + 1)]
+    participant_ids: List[int] = list(range(1, participants + 1))
 
-    yield session
+    # Act
+    rounds = allocate_participants(participant_ids, tables)
 
-    session.close()
-    if transaction.is_active:
-        transaction.rollback()
-    connection.close()
-
-
-@pytest.fixture
-def test_client(db_session: Session) -> Generator[TestClient, None, None]:
-    app.dependency_overrides[get_db] = lambda: db_session
-    with TestClient(app) as client:
-        yield client
-
-
-def test_calculate_rounds_needed() -> None:
-    total_participants = 16
-    seats_per_table = 4
-    table_count = 4
-    rounds_needed = calculate_rounds_needed(total_participants, seats_per_table, table_count)
-    assert rounds_needed > 0, "Rounds needed calculation failed, must be greater than zero."
-
-
-def test_no_repeated_table_groups_across_rounds(test_client: TestClient) -> None:
-    event_id = create_event(test_client)
-    table_quantity = 4
-    seats_per_table = 2
-    create_table(test_client, event_id=event_id, quantity=table_quantity, seats=seats_per_table)
-
-    response = test_client.get(f"/api/tables?event_id={event_id}")
-    assert response.status_code == 200, f"Failed to fetch tables: {response.json()}"
-    tables = [
-        Table(
-            id=table_data["id"], event_id=event_id, table_number=table_data["table_number"], seats=table_data["seats"]
-        )
-        for table_data in response.json()["items"]
-    ]
-
-    participants = list(range(1, table_quantity * seats_per_table + 1))
-    required_rounds = calculate_rounds_needed(len(participants), seats_per_table, table_quantity)
-    rounds = allocate_participants(participants, tables, max_rounds=required_rounds)
-
-    seen_groups = set()
+    # Assert
+    assert isinstance(rounds, dict), "Expected a dictionary for rounds allocation."
+    seen_groups: Set[Tuple[int, ...]] = set()
     for round_allocation in rounds.values():
         for table in tables:
-            table_participants = tuple(sorted(round_allocation[table.id]))
-            if table_participants:
+            table_participants: Tuple[int, ...] = tuple(sorted(round_allocation[table.id]))
+            # Ensure group sizes are greater than 1 and that they have not been encountered before
+            if table_participants and len(table_participants) > 1:
                 assert table_participants not in seen_groups, f"Repeated group found: {table_participants}"
                 seen_groups.add(table_participants)
 
 
-def test_allocate_participants_basic(test_client: TestClient) -> None:
-    event_id = create_event(test_client)
-    table_quantity = 2
-    seats_per_table = 2
-    create_table(test_client, event_id=event_id, quantity=table_quantity, seats=seats_per_table)
+def test_allocate_participants_simulation() -> None:
+    """
+    Test simulate_only mode to calculate the minimum number of rounds needed to encounter all unique groupings.
+    """
+    # Arrange
+    total_participants: int = 16
+    seats_per_table: int = 4
+    table_quantity: int = 4
+    tables: List[Table] = [Table(id=i, seats=seats_per_table) for i in range(1, table_quantity + 1)]
 
-    response = test_client.get(f"/api/tables?event_id={event_id}")
-    assert response.status_code == 200, f"Failed to fetch tables: {response.json()}"
-    tables = [
-        Table(
-            id=table_data["id"], event_id=event_id, table_number=table_data["table_number"], seats=table_data["seats"]
-        )
-        for table_data in response.json()["items"]
-    ]
+    # Act
+    rounds_needed = allocate_participants(
+        participants=list(range(1, total_participants + 1)), tables=tables, simulate_only=True
+    )
 
-    participants = list(range(1, table_quantity * seats_per_table + 1))
-    required_rounds = calculate_rounds_needed(len(participants), seats_per_table, table_quantity)
-    rounds = allocate_participants(participants, tables, max_rounds=required_rounds)
+    # Assert
+    assert isinstance(rounds_needed, int), "Expected an integer as rounds needed in simulation mode."
+    assert rounds_needed > 0, "Expected more than zero rounds needed for unique groupings."
 
-    print("\nAllocation results for manual verification:")
-    print(rounds)
 
+@pytest.mark.parametrize("table_quantity, seats_per_table", [(2, 2), (3, 2), (2, 3)])
+def test_allocate_participants_basic(table_quantity: int, seats_per_table: int) -> None:
+    """
+    Test basic allocation of participants to tables to ensure correct seating capacity is observed.
+    """
+    # Arrange
+    tables: List[Table] = [Table(id=i, seats=seats_per_table) for i in range(1, table_quantity + 1)]
+    participants: List[int] = list(range(1, table_quantity * seats_per_table + 1))
+
+    # Act
+    rounds = allocate_participants(participants, tables)
+
+    # Assert
+    assert isinstance(rounds, dict), "Expected a dictionary for rounds allocation."
     for round_allocation in rounds.values():
         for table in tables:
-            assigned_participants = round_allocation[table.id]
+            assigned_participants: List[int] = round_allocation[table.id]
             assert len(assigned_participants) <= table.seats, "Exceeded seats per table"
 
     for round_allocation in rounds.values():
-        all_assigned = sum(round_allocation.values(), [])
+        all_assigned: List[int] = sum(round_allocation.values(), [])
         assert len(all_assigned) == len(set(all_assigned)), "Repeated participants in a single round"

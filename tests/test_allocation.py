@@ -1,5 +1,5 @@
 # tests/test_allocation.py
-from typing import List
+from typing import List, Set, Tuple
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -26,6 +26,8 @@ def test_preview_allocation_all_participants(client: TestClient, db_session: Ses
     assert response.status_code == 200
     rounds_needed = response.json()
     assert rounds_needed > 0, "Expected at least one round for allocation."
+    # Additional check for return type consistency
+    assert isinstance(rounds_needed, int), "Expected preview allocation to return an integer value for rounds."
 
 
 def test_preview_allocation_checked_in_only(client: TestClient, db_session: Session) -> None:
@@ -49,6 +51,7 @@ def test_preview_allocation_checked_in_only(client: TestClient, db_session: Sess
     assert response.status_code == 200
     rounds_needed = response.json()
     assert rounds_needed > 0, "Expected at least one round for checked-in participants."
+    assert isinstance(rounds_needed, int), "Expected preview allocation to return an integer."
 
 
 def test_confirm_allocation(client: TestClient, db_session: Session) -> None:
@@ -82,3 +85,16 @@ def test_confirm_allocation(client: TestClient, db_session: Session) -> None:
     )
     allocated_participants = {ta.participant_id for ta in allocations_in_db}
     assert len(allocated_participants) == len(participants), "All participants should be allocated."
+
+    # Verify unique grouping of participants across all rounds, ensuring expected interactions
+    unique_interactions: Set[Tuple[int, int]] = set()
+    for allocation in rounds_summary:
+        for table in allocation["allocations"]:
+            participants_at_table = table["participant_ids"]
+            for i, p1 in enumerate(participants_at_table):
+                for p2 in participants_at_table[i + 1 :]:
+                    unique_interactions.add(tuple(sorted((p1, p2))))
+
+    # Total possible unique pairs (combinations) for the participants
+    total_possible_pairs = len(participants) * (len(participants) - 1) // 2
+    assert len(unique_interactions) == total_possible_pairs, "Not all unique interactions were created."
