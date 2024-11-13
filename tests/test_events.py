@@ -1,98 +1,15 @@
 # tests/test_events.py
-import os
-import random
 from datetime import datetime, timedelta
-from typing import Generator
 
-import pytest
-from dotenv import load_dotenv
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session
 
-from src.database import Base, get_db
-from src.main import app
 from src.models.event import Event
-from src.schemas.event import EventCreate
-
-# Load the database URL from the .env file
-load_dotenv()
-DATABASE_URL = os.getenv("POSTGRES_URL")
-
-# Adjust the DATABASE_URL for compatibility
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
-if DATABASE_URL:
-    DATABASE_URL = DATABASE_URL.split("&supa=")[0]
-
-if not DATABASE_URL:
-    raise ValueError("DATABASE_URL is not set in the environment variables")
-
-# Set up the database engine
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
-@pytest.fixture(scope="function")
-def db_session() -> Generator[Session, None, None]:
-    """Create a new DB session for each test."""
-    connection = engine.connect()
-    transaction = connection.begin()
-
-    session = SessionLocal(bind=connection)
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
-
-    yield session
-
-    session.close()
-    if transaction.is_active:
-        transaction.rollback()
-    connection.close()
-
-
-@pytest.fixture
-def test_client(db_session: Session) -> Generator[TestClient, None, None]:
-    """Create a TestClient instance."""
-    app.dependency_overrides[get_db] = lambda: db_session
-    with TestClient(app) as client:
-        yield client
-
-
-# SQLAlchemyError mock definition
-class MockSQLAlchemyError(SQLAlchemyError):
-    pass
-
-
-def generate_unique_event() -> EventCreate:
-    """Generate a unique event with random data."""
-    date = datetime.now() + timedelta(days=random.randint(1, 30))
-    return EventCreate(
-        name=f"Event {random.randint(1, 10000)}",
-        date=date,
-        location=f"Location {random.randint(1, 100)}",
-        address=f"{random.randint(1, 1000)} - Sample Address, São Paulo - SP, 01310-{random.randint(100, 999)}",
-        participant_limit=random.randint(10, 100),
-        max_seats_per_table=random.randint(2, 8),
-        tables_count=random.randint(1, 20),
-    )
-
-
-def create_event(test_client: TestClient) -> int:
-    """Helper function to create an event and return the event_id."""
-    event_data = generate_unique_event()
-    event_data_dict = event_data.model_dump()
-    event_data_dict["date"] = event_data.date.isoformat()
-
-    response = test_client.post("/api/events/", json=event_data_dict)
-    assert response.status_code == 201
-    return response.json()["id"]
+from tests.helpers import create_event_with_isoformat, generate_unique_event
 
 
 # Tests for POST /api/events/
-def test_event_creation_success(test_client: TestClient, db_session: Session) -> None:
+def test_event_creation_success(client: TestClient, db_session: Session) -> None:
     """Test successful creation of an event."""
     # Arrange
     event_data = generate_unique_event()
@@ -100,7 +17,7 @@ def test_event_creation_success(test_client: TestClient, db_session: Session) ->
     event_data_dict["date"] = event_data.date.isoformat()
 
     # Act
-    response = test_client.post("/api/events/", json=event_data_dict)
+    response = client.post("/api/events/", json=event_data_dict)
 
     # Assert
     assert response.status_code == 201
@@ -108,7 +25,7 @@ def test_event_creation_success(test_client: TestClient, db_session: Session) ->
     assert response_data["name"] == event_data.name
 
 
-def test_event_creation_with_past_date(test_client: TestClient, db_session: Session) -> None:
+def test_event_creation_with_past_date(client: TestClient, db_session: Session) -> None:
     """Test that an event cannot be created with a past date."""
     # Arrange
     event_data = generate_unique_event()
@@ -118,7 +35,7 @@ def test_event_creation_with_past_date(test_client: TestClient, db_session: Sess
     event_data_dict["date"] = past_date.isoformat()
 
     # Act
-    response = test_client.post("/api/events/", json=event_data_dict)
+    response = client.post("/api/events/", json=event_data_dict)
 
     # Assert
     assert response.status_code == 422
@@ -127,13 +44,13 @@ def test_event_creation_with_past_date(test_client: TestClient, db_session: Sess
 
 
 # Tests for GET /api/events/
-def test_get_all_events_success(test_client: TestClient, db_session: Session) -> None:
+def test_get_all_events_success(client: TestClient, db_session: Session) -> None:
     """Test retrieval of all events."""
     # Arrange
-    create_event(test_client)
+    create_event_with_isoformat(client)
 
     # Act
-    response = test_client.get("/api/events/")
+    response = client.get("/api/events/")
 
     # Assert
     assert response.status_code == 200
@@ -143,13 +60,13 @@ def test_get_all_events_success(test_client: TestClient, db_session: Session) ->
 
 
 # Tests for GET /api/events/filter
-def test_filter_events(test_client: TestClient, db_session: Session) -> None:
+def test_filter_events(client: TestClient, db_session: Session) -> None:
     """Test event filtering based on criteria."""
     # Arrange
-    create_event(test_client)
+    create_event_with_isoformat(client)
 
     # Act
-    response = test_client.get("/api/events/filter?name=Event")
+    response = client.get("/api/events/filter?name=Event")
 
     # Assert
     assert response.status_code == 200
@@ -159,34 +76,35 @@ def test_filter_events(test_client: TestClient, db_session: Session) -> None:
 
 
 # Tests for GET /api/events/{event_id}
-def test_get_event_by_id_success(test_client: TestClient, db_session: Session) -> None:
+def test_get_event_by_id_success(client: TestClient, db_session: Session) -> None:
     """Test retrieval of an event by ID."""
     # Arrange
-    event_id = create_event(test_client)
+    event_data = create_event_with_isoformat(client)
+    event_id = event_data["id"]  # Extrai apenas o ID
 
     # Act
-    response = test_client.get(f"/api/events/{event_id}")
+    response = client.get(f"/api/events/{event_id}")
 
     # Assert
     assert response.status_code == 200
-    response_data = response.json()
-    assert response_data["id"] == event_id
+    assert response.json()["id"] == event_id
 
 
-def test_get_event_by_id_not_found(test_client: TestClient, db_session: Session) -> None:
+def test_get_event_by_id_not_found(client: TestClient, db_session: Session) -> None:
     """Test retrieval of a non-existent event returns 404."""
     # Arrange/Act
-    response = test_client.get("/api/events/9999")
+    response = client.get("/api/events/9999")
 
     # Assert
     assert response.status_code == 404
 
 
 # Tests for PUT /api/events/{event_id}
-def test_update_event_success(test_client: TestClient, db_session: Session) -> None:
+def test_update_event_success(client: TestClient, db_session: Session) -> None:
     """Test successful update of an event."""
     # Arrange
-    event_id = create_event(test_client)
+    event_data = create_event_with_isoformat(client)
+    event_id = event_data["id"]  # Extrai apenas o ID
     updated_data = {
         "name": "Updated Event",
         "date": (datetime.now() + timedelta(days=15)).isoformat(),
@@ -198,13 +116,15 @@ def test_update_event_success(test_client: TestClient, db_session: Session) -> N
     }
 
     # Act
-    response = test_client.put(f"/api/events/{event_id}", json=updated_data)
+    response = client.put(f"/api/events/{event_id}", json=updated_data)
 
     # Assert
     assert response.status_code == 200
+    response_data = response.json()
+    assert response_data["name"] == updated_data["name"]
 
 
-def test_update_event_not_found(test_client: TestClient, db_session: Session) -> None:
+def test_update_event_not_found(client: TestClient, db_session: Session) -> None:
     """Test updating a non-existent event returns 404."""
     # Arrange
     updated_data = {
@@ -218,31 +138,32 @@ def test_update_event_not_found(test_client: TestClient, db_session: Session) ->
     }
 
     # Act
-    response = test_client.put("/api/events/9999", json=updated_data)
+    response = client.put("/api/events/9999", json=updated_data)
 
     # Assert
     assert response.status_code == 404
 
 
 # Tests for DELETE /api/events/{event_id}
-def test_delete_event_success(test_client: TestClient, db_session: Session) -> None:
+def test_delete_event_success(client: TestClient, db_session: Session) -> None:
     """Test successful deletion of an event by ID."""
     # Arrange
-    event_id = create_event(test_client)
+    event_data = create_event_with_isoformat(client)
+    event_id = event_data["id"]  # Extrai apenas o ID
 
     # Act
-    response = test_client.delete(f"/api/events/{event_id}")
+    response = client.delete(f"/api/events/{event_id}")
 
     # Assert
     assert response.status_code == 204
-    response = test_client.get(f"/api/events/{event_id}")
+    response = client.get(f"/api/events/{event_id}")
     assert response.status_code == 404
 
 
-def test_delete_event_not_found(test_client: TestClient, db_session: Session) -> None:
+def test_delete_event_not_found(client: TestClient, db_session: Session) -> None:
     """Test deletion of a non-existent event returns 404."""
     # Arrange/Act
-    response = test_client.delete("/api/events/9999")
+    response = client.delete("/api/events/9999")
 
     # Assert
     assert response.status_code == 404
