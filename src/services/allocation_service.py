@@ -1,70 +1,92 @@
 # src/services/allocation_service.py
-from typing import Dict, List, Union
+import random
+from typing import Dict, List, Optional
 
+from sqlalchemy.orm import Session
+
+from src.models.round import Round
 from src.models.table import Table
+from src.models.table_allocation import TableAllocation
+from src.schemas.round_summary import RoundSummary, TableAllocationSummary
 
 
 def allocate_participants(
-    participants: List[int], tables: List[Table], simulate_only: bool = False
-) -> Union[Dict[int, Dict[int, List[int]]], int]:
+    participants: List[int], tables: List[Table], max_rounds: Optional[int] = None
+) -> Dict[int, Dict[int, List[int]]]:
     """
-    Allocate participants across rounds using a controlled transposition approach,
-    ensuring unique groupings based on the Excel approach.
+    Allocate participants across rounds to maximize unique encounters within specified rounds.
 
     Parameters:
         - participants (List[int]): List of participant IDs.
         - tables (List[Table]): List of table configurations.
-        - simulate_only (bool): If True, only returns the number of rounds needed.
+        - max_rounds (Optional[int]): Maximum number of rounds for allocation.
 
     Returns:
-        Union[Dict[int, Dict[int, List[int]]], int]: A dictionary of rounds with table allocations or
-        the count of rounds if in simulate_only mode.
+        Dict[int, Dict[int, List[int]]]: A dictionary with rounds as keys and table allocations.
     """
+
+    encounters: Dict[int, set[int]] = {p: set() for p in participants}
     rounds = {}
-    num_tables = len(tables)
-    table_capacity = tables[0].seats  # Assume all tables have the same capacity
+    table_capacity = tables[0].seats  # Assumes all tables have the same capacity
+    num_tables = len(tables)  # Define o número de mesas com base no tamanho da lista tables
 
-    # Step 1: Create the initial allocation (first round)
-    initial_allocation = {
-        tables[i].id: participants[i * table_capacity : (i + 1) * table_capacity] for i in range(num_tables)
-    }
-    rounds[1] = initial_allocation
+    # If max_rounds is not provided, set it to the number of tables
+    if max_rounds is None:
+        max_rounds = num_tables
 
-    # Step 2: Generate subsequent rounds by rotating participant positions
-    round_number = 2
-    current_allocation = initial_allocation
+    for round_number in range(1, max_rounds + 1):
+        random.shuffle(participants)  # Shuffle participants to create random groups
+        allocation = {}
 
-    while True:
-        new_allocation: Dict[int, List[int]] = {table.id: [] for table in tables}
-        column_index = 0  # To track current column position for transposition
+        # Allocate participants to tables in groups
+        for i in range(num_tables):
+            table_participants = participants[i * table_capacity : (i + 1) * table_capacity]
+            allocation[tables[i].id] = table_participants
 
-        # Transpose the previous round's matrix into the new round's matrix
-        for row in current_allocation.values():
-            remaining_positions = table_capacity - len(new_allocation[tables[column_index].id])
+            # Update encounters for each participant
+            for p1 in table_participants:
+                for p2 in table_participants:
+                    if p1 != p2:
+                        encounters[p1].add(p2)
 
-            # Fill the current column with as many participants as fit
-            for i in range(len(row)):
-                if remaining_positions == 0:
-                    # Move to the next column if the current one is full
-                    column_index += 1
-                    remaining_positions = table_capacity
+        # Add the allocation to the rounds
+        rounds[round_number] = allocation
 
-                new_allocation[tables[column_index].id].append(row[i])
-                remaining_positions -= 1
-
-                if column_index >= num_tables:
-                    break  # Ensure we don't exceed the table limit in rare edge cases
-
-        # Check if the allocation is repeating the initial allocation, which means we're done
-        if new_allocation == initial_allocation:
-            # Return only the count if in simulation mode
-            if simulate_only:
-                return round_number - 1
+        # Check if maximum unique encounters are reached
+        all_encounters_met = all(len(encounters[p]) >= len(participants) - 1 for p in participants)
+        if all_encounters_met:
             break
 
-        rounds[round_number] = new_allocation
-        current_allocation = new_allocation
-        round_number += 1
-
-    # Return the full allocation plan across all rounds if not in simulation mode
     return rounds
+
+
+def get_completed_allocations(event_id: int, db: Session) -> List[RoundSummary]:
+    """
+    Retrieve completed allocations for a specific event.
+
+    Parameters:
+        - event_id (int): ID of the event.
+        - db (Session): Database session dependency.
+
+    Returns:
+        List[RoundSummary]: List of round summaries showing table allocations per round.
+    """
+    rounds = db.query(Round).filter(Round.event_id == event_id).order_by(Round.round_number).all()
+
+    if not rounds:
+        return []
+
+    round_summaries = []
+    for round_entry in rounds:
+        table_allocations = db.query(TableAllocation).filter(TableAllocation.round_id == round_entry.id).all()
+        allocation_summary = [
+            TableAllocationSummary(table_id=allocation.table_id, participant_ids=[allocation.participant_id])
+            for allocation in table_allocations
+        ]
+        round_summary = RoundSummary(
+            round_number=round_entry.round_number,
+            allocations=allocation_summary,
+        )
+        round_summaries.append(round_summary)
+
+    return round_summaries
