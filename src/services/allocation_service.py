@@ -4,6 +4,7 @@ from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
+from src.models.participant import Participant
 from src.models.round import Round
 from src.models.table import Table
 from src.models.table_allocation import TableAllocation
@@ -90,3 +91,74 @@ def get_completed_allocations(event_id: int, db: Session) -> List[RoundSummary]:
         round_summaries.append(round_summary)
 
     return round_summaries
+
+
+def get_allocation_by_participant(event_id: int, participant_id: int, db: Session) -> Dict[str, Dict[str, int]]:
+    """
+    Retrieve allocation details for a specific participant across rounds in an event.
+
+    Parameters:
+        - event_id (int): ID of the event.
+        - participant_id (int): ID of the participant.
+        - db (Session): Database session dependency.
+
+    Returns:
+        Dict[str, Dict[str, int]]: Dictionary mapping rounds to allocated tables.
+    """
+    allocations = (
+        db.query(TableAllocation)
+        .join(Round, TableAllocation.round_id == Round.id)
+        .join(Table, TableAllocation.table_id == Table.id)
+        .filter(Round.event_id == event_id, TableAllocation.participant_id == participant_id)
+        .order_by(Round.round_number)
+        .all()
+    )
+
+    if not allocations:
+        return {}
+
+    return {
+        f"Round {allocation.round.round_number}": {"table_number": allocation.table.table_number}
+        for allocation in allocations
+    }
+
+
+def get_allocation_by_event(event_id: int, db: Session) -> Dict[str, Dict[str, List[str]]]:
+    """
+    Retrieve allocation details for all participants grouped by rounds and tables in an event.
+
+    Parameters:
+        - event_id (int): ID of the event.
+        - db (Session): Database session dependency.
+
+    Returns:
+        Dict[str, Dict[str, List[str]]]: Dictionary with allocation grouped by rounds and tables.
+    """
+    allocations = (
+        db.query(TableAllocation)
+        .join(Round, TableAllocation.round_id == Round.id)
+        .join(Table, TableAllocation.table_id == Table.id)
+        .join(Participant, TableAllocation.participant_id == Participant.id)
+        .filter(Round.event_id == event_id)
+        .order_by(Round.round_number, Table.table_number)
+        .all()
+    )
+
+    if not allocations:
+        return {}
+
+    grouped_allocations: Dict[str, Dict[str, List[str]]] = {}
+
+    for allocation in allocations:
+        round_key = f"Round {allocation.round.round_number}"
+        table_key = f"Table {allocation.table.table_number}"
+
+        if round_key not in grouped_allocations:
+            grouped_allocations[round_key] = {}
+
+        if table_key not in grouped_allocations[round_key]:
+            grouped_allocations[round_key][table_key] = []
+
+        grouped_allocations[round_key][table_key].append(allocation.participant.full_name)
+
+    return grouped_allocations

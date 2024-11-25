@@ -1,5 +1,5 @@
 # src/routers/allocation.py
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -11,7 +11,12 @@ from src.models.round import Round
 from src.models.table import Table
 from src.models.table_allocation import TableAllocation
 from src.schemas.round_summary import RoundSummary, TableAllocationSummary
-from src.services.allocation_service import allocate_participants, get_completed_allocations
+from src.services.allocation_service import (
+    allocate_participants,
+    get_allocation_by_event,
+    get_allocation_by_participant,
+    get_completed_allocations,
+)
 
 router = APIRouter()
 
@@ -62,6 +67,106 @@ def get_completed_allocations_route(event_id: int, db: Session = Depends(get_db)
         raise HTTPException(status_code=404, detail="No allocations exist for this event.")
 
     return round_summaries
+
+
+@router.get(
+    "/api/events/{event_id}/allocation/by-participant",
+    response_model=Dict[str, Dict[str, int]],
+    status_code=status.HTTP_200_OK,
+    summary="Retrieve allocation details by participant",
+    responses={
+        200: {
+            "description": "Allocation details for a participant returned successfully.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "Round 1": {"table_number": 5},
+                        "Round 2": {"table_number": 3},
+                        "Round 3": {"table_number": 7},
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "Participant not found or no allocations exist for the event.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "No allocation found for the specified participant and event."}
+                }
+            },
+        },
+    },
+)
+def get_allocation_by_participant_route(
+    event_id: int, participant_id: int, db: Session = Depends(get_db)
+) -> Dict[str, Dict[str, int]]:
+    """
+    Retrieve allocation details for a specific participant in an event.
+
+    Parameters:
+        - event_id (int): ID of the event.
+        - participant_id (int): ID of the participant.
+        - db (Session): Database session dependency.
+
+    Returns:
+        Dict[str, Dict[str, int]]: Allocation details for the participant across rounds.
+    """
+    allocation = get_allocation_by_participant(event_id=event_id, participant_id=participant_id, db=db)
+
+    if not allocation:
+        raise HTTPException(status_code=404, detail="No allocation found for the specified participant and event.")
+
+    return allocation
+
+
+@router.get(
+    "/api/events/{event_id}/allocation/by-event",
+    response_model=Dict[str, Dict[str, List[str]]],
+    status_code=status.HTTP_200_OK,
+    summary="Retrieve allocation details for all participants in the event",
+    responses={
+        200: {
+            "description": "Allocation details for the event returned successfully.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "Round 1": {
+                            "Table 1": ["Participant A", "Participant B"],
+                            "Table 2": ["Participant C", "Participant D"],
+                        },
+                        "Round 2": {
+                            "Table 1": ["Participant E", "Participant F"],
+                            "Table 2": ["Participant G", "Participant H"],
+                        },
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "No allocations exist for the event.",
+            "content": {
+                "application/json": {"example": {"detail": "No allocation data found for the specified event."}}
+            },
+        },
+    },
+)
+def get_allocation_by_event_route(event_id: int, db: Session = Depends(get_db)) -> Dict[str, Dict[str, List[str]]]:
+    """
+    Retrieve allocation details for all participants in an event grouped by rounds and tables.
+
+    Parameters:
+        - event_id (int): ID of the event.
+        - db (Session): Database session dependency.
+
+    Returns:
+        Dict[str, Dict[str, List[str]]]: Allocation details grouped by round and table.
+    """
+    allocation = get_allocation_by_event(event_id=event_id, db=db)
+
+    if not allocation:
+        raise HTTPException(status_code=404, detail="No allocation data found for the specified event.")
+
+    return allocation
 
 
 @router.post(
