@@ -53,7 +53,7 @@ class EventCreate(BaseModel):
         return value
 
 
-class EventRead(EventCreate):
+class EventRead(BaseModel):
     """
     Schema for reading an event, which includes the event ID.
 
@@ -69,6 +69,13 @@ class EventRead(EventCreate):
     """
 
     id: int
+    name: str
+    date: datetime
+    location: str
+    address: str
+    participant_limit: int
+    max_seats_per_table: int
+    tables_count: int
 
     model_config = ConfigDict(from_attributes=True)
 
